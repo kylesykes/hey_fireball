@@ -1,6 +1,11 @@
 import os
 import time
+
+import redis
 from slackclient import SlackClient
+
+# creating redis connection
+r = redis.from_url(os.environ.get("REDIS_URL"))
 
 
 # starterbot's ID as an environment variable
