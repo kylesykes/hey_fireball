@@ -82,6 +82,7 @@ if __name__ == "__main__":
             command, channel = parse_slack_output(slack_client.rtm_read())
             if command and channel:
                 # handle_command(command, channel)
+                # repeaat back to test what "command" consists of
                 slack_client.api_call("chat.postMessage", channel=channel, 
                                     text=command, as_user=True)
 
