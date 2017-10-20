@@ -1,1 +1,1 @@
-web: python hey_fireball.py
+worker: python hey_fireball.py
