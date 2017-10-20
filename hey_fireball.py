@@ -13,6 +13,11 @@ EXAMPLE_COMMAND = "do"
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 
+data = {
+    'daily_allotment' : {},
+    'current_score' : {}
+}
+
 
 def handle_command(command, channel):
     """
@@ -44,6 +49,26 @@ def parse_slack_output(slack_rtm_output):
     return None, None
 
 
+def give_fireball(user_id, number_of_points):
+    """If command contains a single username and either 
+        a) an integer or
+        b) a number of :fireball: emojis
+    """
+    pass 
+
+
+def remove_points(user_id, number_of_points):
+    """
+    """
+    pass 
+
+
+def check_points(user_id, number_of_points):
+    """
+    """
+    pass 
+
+
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second delay between reading from firehose
     if slack_client.rtm_connect():
@@ -51,7 +76,10 @@ if __name__ == "__main__":
         while True:
             command, channel = parse_slack_output(slack_client.rtm_read())
             if command and channel:
-                handle_command(command, channel)
+                # handle_command(command, channel)
+                slack_client.api_call("chat.postMessage", channel=channel, 
+                                    text=command, as_user=True)
+
             time.sleep(READ_WEBSOCKET_DELAY)
     else:
         print("Connection failed. Invalid Slack token or bot ID?")
