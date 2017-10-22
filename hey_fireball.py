@@ -144,6 +144,10 @@ def extract_fireball_info(slack_msg):
             elif parts[2].lower() == 'count':
                 # Need to return point count of target user.
                 command = 'count'
+            elif parts[2].lower() == 'all':
+                # Give all remaining points from requestor to target.
+                command = 'give'
+                points = get_user_points_remaining(requestor_id)
             else:
                 try:
                     # This is a give command. Need to parse int.
@@ -197,7 +201,6 @@ def check_points(user_id, number_of_points):
     """
     return get_user_points_remaining(user_id) >= number_of_points
         
-
 
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second delay between reading from firehose
