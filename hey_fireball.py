@@ -148,6 +148,8 @@ def extract_fireball_info(slack_msg):
                 # Give all remaining points from requestor to target.
                 command = 'give'
                 points = get_user_points_remaining(requestor_id)
+            elif parts[2].lower() == 'leaderboard':
+                command = 'leaderboard'
             else:
                 try:
                     # This is a give command. Need to parse int.
@@ -202,6 +204,26 @@ def check_points(user_id, number_of_points):
     return get_user_points_remaining(user_id) >= number_of_points
         
 
+def generate_leaderboard():
+    return [
+                    {
+                        "fallback": "Required plain-text summary of the attachment.",
+                        "color": "#36a64f",
+                        "pretext": "HeyFireball Leaderboard",
+
+                        "title": "Person 1: 10"
+
+                    },
+                            {
+                        "fallback": "Required plain-text summary of the attachment.",
+                        "color": "#36a64f",
+
+
+                        "title": "Person 2: 8"
+
+                    }
+            ]
+
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second delay between reading from firehose
     if slack_client.rtm_connect():
@@ -214,6 +236,7 @@ if __name__ == "__main__":
             #       out to a separate function.
             if fb_info:
                 msg = ''
+                attach=None
                 # Check if there was a valid message.
                 if fb_info.valid:
                     if fb_info.command == 'give':
@@ -228,11 +251,15 @@ if __name__ == "__main__":
                     elif fb_info.command == 'count':
                         count = get_user_points_received(fb_info.target_id)
                         msg = '{} has received {} points'.format(fb_info.target_id, count)
+                    elif fb_info.command == 'leaderboard':
+                        msg = "Leaderboard"
+                        attach = generate_leaderboard()
+
                 else:
                     # Message was not valid, so 
                     msg = '{}: I do not understand your message. Try again!'.format(fb_info.requestor_id)
                 slack_client.api_call("chat.postMessage", channel=fb_info.channel, 
-                                    text=msg, as_user=True)
+                                    text=msg, as_user=True, attachments=attach)
             time.sleep(READ_WEBSOCKET_DELAY)
     else:
         print("Connection failed. Invalid Slack token or bot ID?")
