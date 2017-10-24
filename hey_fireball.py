@@ -23,6 +23,26 @@ EMOJI = ':fireball:'
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 
+
+################
+# Fireball class
+################
+class Fireball():
+    def __init__(self):
+        self.requestor_id = None
+        self.target_id = None
+        self.count = None
+        self.valid = None
+        self.channel = None
+        self.command = None
+
+    # Use the following to catch and handle missing methods/properties as we want
+    def __getattr__(self, name):
+        def wrapper(*args, **kwargs):
+            print "{} is an invalid statement.".format(name)
+        return wrapper 
+
+
 #####################
 # Storing and retrieving data
 #####################
@@ -117,12 +137,14 @@ def extract_valid_user(user_str):
         return a[0]
     return None
 
+
 def extract_fireball_info(slack_msg):
     """Extract relevant info from slack msg and return a FireballInfo instance.
 
     If required info is missing or the format is not recognized, set valid=False 
     and return instance.
     """
+    fireball = Fireball()
     is_valid_message = True
     text = slack_msg['text']
     parts = text.split()
