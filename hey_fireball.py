@@ -113,10 +113,12 @@ def get_user_points_remaining(user_id):
     else:
         return MAX_POINTS_PER_DAY
 
+
 def add_user_points_used(user_id, num):
     """Add `num` to user's total used points."""
     user_data = data.setdefault(user_id, {})
     user_data[POINTS_USED] = user_data.get(POINTS_USED, 0) + num
+
 
 def get_user_points_received(user_id):
     """Return the number of points received by this user."""
@@ -125,13 +127,17 @@ def get_user_points_received(user_id):
     else:
         return 0
 
+
 def add_user_points_received(user_id, num):
     """Add `num` to user's total received points."""
     user_data = data.setdefault(user_id, {})
     user_data[POINTS_RECEIVED] = user_data.get(POINTS_RECEIVED, 0) + num
 
+
 def get_users_and_scores():
+    """Return list of (user, score) tuples."""
     return [(k, v[POINTS_RECEIVED]) for k,v in data.items()]
+
 
 #####################
 # Parsing Message
@@ -196,8 +202,8 @@ def extract_fireball_info(slack_msg):
 
 def handle_command(fireball_message):
     """
-        Receives a valid FireballMessage instance and 
-        executes the command.
+        Receive a valid FireballMessage instance and 
+        execute the command.
     """
     msg = ''
     attach = None
@@ -242,9 +248,7 @@ def handle_command(fireball_message):
 
 
 def give_fireball(user_id, number_of_points):
-    """If command contains a single username and either 
-        a) an integer or
-        b) a number of :fireball: emojis
+    """Add `number_of_points` to `user_id`'s total score.
     """
     add_user_points_received(user_id, number_of_points) 
 
@@ -259,29 +263,35 @@ def check_points(user_id, number_of_points):
     """Check to see if user_id has enough points remaining today.
     """
     return get_user_points_remaining(user_id) >= number_of_points
-        
+
+'''       
+colors = ['#36a64f',
+'#FF5733',
+'#DAF7A6',
+'#FFC300',
+'#C70039',
+'#900C3F'
+]
+'''
+colors= ['#d4af37', '#c0c0c0', '#cd7f32', '#36a64f']
+
+def leaderboard_item(user, score, idx):
+    """Generate a leaderboard item."""
+    return    {
+            "fallback": "{}: {}".format(user, score),
+            "color": colors[min(idx, len(colors))],
+            "title":  "{}: {}".format(user, score)
+        }
 
 def generate_leaderboard():
-    leaders = 
-    return [
-                    {
-                        "fallback": "Required plain-text summary of the attachment.",
-                        "color": "#36a64f",
-                        "pretext": "HeyFireball Leaderboard",
-
-                        "title": "Person 1: 10"
-
-                    },
-                            {
-                        "fallback": "Required plain-text summary of the attachment.",
-                        "color": "#36a64f",
-
-
-                        "title": "Person 2: 8"
-
-                    }
-            ]
-
+    """Generate a formatted leaderboard."""
+    # Get sorted list of all users and their scores.
+    leaders = sorted(get_users_and_scores(), key=lambda tup: tup[1], reverse=True)
+    # Create list of leaderboard items.
+    board = [leaderboard_item(tup[0], tup[1], idx) for idx, tup in enumerate(leaders)]
+    # Add test to the first element.
+    board[0]["pretext"] = "HeyFireball Leaderboard"
+    return board
 
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second delay between reading from firehose
