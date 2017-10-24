@@ -19,12 +19,13 @@ AT_BOT = "<@" + BOT_ID + ">"
 EXAMPLE_COMMAND = "do"
 MAX_POINTS_PER_DAY = 5
 EMOJI = ':fireball:'
+POINTS = 'shots'
 
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 
-commands = ['leaderboard', 'shots', 'shotsleft']
-commands_with_target = ['count', 'all']
+commands = ['leaderboard', POINTS, '{}left'.format(POINTS)]
+commands_with_target = [POINTS, 'all']
 
 ################
 # FireballMessage class
@@ -35,8 +36,8 @@ class FireballMessage():
     _user_id_re = re.compile(_USER_ID_PATTERN)
 
     def __init__(self, msg):
-        self.requestor_id = msg['user']
-        self.requestor_id_formatted = '<@{}>'.format(self.requestor_id)
+        self.requestor_id_only = msg['user']
+        self.requestor_id = '<@{}>'.format(self.requestor_id_only)
         self.channel = msg['channel']
         self.text = msg['text']
         self.parts = self.text.split()
@@ -46,6 +47,8 @@ class FireballMessage():
         self.count = self._extract_count()
         self.valid = None
 
+    def __str__(self):
+        return str(vars(self))
 
     @staticmethod
     def _extract_valid_user(user_str):
@@ -58,7 +61,7 @@ class FireballMessage():
         if len(a) > 0:
             return a[0]
         return None
-
+ 
     def _extract_command(self):
         """Find the command in the message."""
         if self.target_id:
@@ -127,30 +130,12 @@ def add_user_points_received(user_id, num):
     user_data = data.setdefault(user_id, {})
     user_data[POINTS_RECEIVED] = user_data.get(POINTS_RECEIVED, 0) + num
 
-#data = {
-#    'daily_allotment' : {},
-#    'current_score' : {}
-#}
-
+def get_users_and_scores():
+    return [(k, v[POINTS_RECEIVED]) for k,v in data.items()]
 
 #####################
-# Slack interaction functions
+# Parsing Message
 #####################
-
-
-def handle_command(command, channel):
-    """
-        Receives commands directed at the bot and determines if they
-        are valid commands. If so, then acts on the commands. If not,
-        returns back what it needs for clarification.
-    """
-    response = "Not sure what you mean. Use the *" + EXAMPLE_COMMAND + \
-               "* command with numbers, delimited by spaces."
-    if command.startswith(EXAMPLE_COMMAND):
-        response = "Sure...write some more code then I can do that!"
-    slack_client.api_call("chat.postMessage", channel=channel,
-                          text=response, as_user=True)
-
 
 def parse_slack_output(slack_rtm_output):
     """
@@ -205,6 +190,57 @@ def extract_fireball_info(slack_msg):
     return fireball   
 
 
+#####################
+# Executing commands
+#####################
+
+def handle_command(fireball_message):
+    """
+        Receives a valid FireballMessage instance and 
+        executes the command.
+    """
+    msg = ''
+    attach = None
+    if fireball_message.command == 'give':
+        # Determine if requestor has enough points to give.
+        if check_points(fireball_message.requestor_id, fireball_message.count):
+            # Add points to target score.
+            add_user_points_received(fireball_message.target_id, fireball_message.count)
+            # Add points to requestor points used.
+            add_user_points_used(fireball_message.requestor_id, fireball_message.count)
+            msg = '{} gave {} {} to {}'.format(fireball_message.requestor_id,
+                                                        fireball_message.count,
+                                                        POINTS,
+                                                        fireball_message.target_id)
+        else:
+            # Requestor lacks enough points to give.
+            msg = '{} does not have enough {}!'.format(fireball_message.requestor_id, POINTS)    
+
+    elif fireball_message.command == POINTS:
+        if fireball_message.target_id:
+            # Return target's score.
+            score = get_user_points_received(fireball_message.target_id)
+            msg = '{} has received {} {}'.format(fireball_message.target_id, score, POINTS)
+        else:
+            # Return requestor's score.
+            score = get_user_points_received(fireball_message.requestor_id)
+            msg = '{} has received {} {}'.format(fireball_message.requestor_id, score, POINTS)
+
+    elif fireball_message.command == 'leaderboard':
+        # Post the leaderboard
+        msg = "Leaderboard"
+        attach = generate_leaderboard()
+
+    else:
+        # Message was not valid, so 
+        msg = '{}: I do not understand your message. Try again!'.format(fireball_message.requestor_id)
+    
+    # Post message to Slack.
+    slack_client.api_call("chat.postMessage", channel=fireball_message.channel, 
+                    text=msg, as_user=True, attachments=attach)
+
+
+
 def give_fireball(user_id, number_of_points):
     """If command contains a single username and either 
         a) an integer or
@@ -226,6 +262,7 @@ def check_points(user_id, number_of_points):
         
 
 def generate_leaderboard():
+    leaders = 
     return [
                     {
                         "fallback": "Required plain-text summary of the attachment.",
@@ -245,42 +282,20 @@ def generate_leaderboard():
                     }
             ]
 
+
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second delay between reading from firehose
     if slack_client.rtm_connect():
         print("HeyFireball connected and running!")
         while True:
             # Parse messages and look for EMOJI.
-            fb_info = parse_slack_output(slack_client.rtm_read())
+            fireball_message = parse_slack_output(slack_client.rtm_read())
             # Check if any messages were found containing EMOJI.
-            # TODO: Refactor the logic determing the appropriate actions/response 
-            #       out to a separate function.
-            if fb_info:
-                msg = ''
-                attach=None
+            if fireball_message:
+                #print(fireball_message)
                 # Check if there was a valid message.
-                if fb_info.valid:
-                    if fb_info.command == 'give':
-                        if check_points(fb_info.requestor_id, fb_info.count):
-                            add_user_points_received(fb_info.target_id, fb_info.count)
-                            add_user_points_used(fb_info.requestor_id, fb_info.count)
-                            msg = '{} gave {} fireballs to {}'.format(fb_info.requestor_id_formatted,
-                                                                        fb_info.count,
-                                                                        fb_info.target_id)
-                        else:
-                            msg = '{} does not have enough points!'.format(fb_info.requestor_id_formatted)                           
-                    elif fb_info.command == 'count':
-                        count = get_user_points_received(fb_info.target_id)
-                        msg = '{} has received {} points'.format(fb_info.target_id, count)
-                    elif fb_info.command == 'leaderboard':
-                        msg = "Leaderboard"
-                        attach = generate_leaderboard()
-
-                else:
-                    # Message was not valid, so 
-                    msg = '{}: I do not understand your message. Try again!'.format(fb_info.requestor_id)
-                slack_client.api_call("chat.postMessage", channel=fb_info.channel, 
-                                    text=msg, as_user=True, attachments=attach)
+                if fireball_message.valid:
+                    handle_command(fireball_message)
             time.sleep(READ_WEBSOCKET_DELAY)
     else:
         print("Connection failed. Invalid Slack token or bot ID?")
