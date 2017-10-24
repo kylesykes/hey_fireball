@@ -23,25 +23,74 @@ EMOJI = ':fireball:'
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 
+commands = ['leaderboard', 'shots', 'shotsleft']
+commands_with_target = ['count', 'all']
 
 ################
-# Fireball class
+# FireballMessage class
 ################
-class Fireball():
-    def __init__(self):
-        self.requestor_id = None
-        self.target_id = None
-        self.count = None
+class FireballMessage():
+
+    _USER_ID_PATTERN = '<@\w+>'
+    _user_id_re = re.compile(_USER_ID_PATTERN)
+
+    def __init__(self, msg):
+        self.requestor_id = msg['user']
+        self.requestor_id_formatted = '<@{}>'.format(self.requestor_id)
+        self.channel = msg['channel']
+        self.text = msg['text']
+        self.parts = self.text.split()
+        self.bot_is_first = self.parts[0] == AT_BOT
+        self.target_id = self._extract_valid_user(self.parts[1])
+        self.command = self._extract_command()
+        self.count = self._extract_count()
         self.valid = None
-        self.channel = None
-        self.command = None
 
+
+    @staticmethod
+    def _extract_valid_user(user_str):
+        """Check if string is a valid user id.
+
+        Initially just checking for a valid pattern, but eventually need to check 
+        if ID is in Slack user list.
+        """
+        a = FireballMessage._user_id_re.findall(user_str)
+        if len(a) > 0:
+            return a[0]
+        return None
+
+    def _extract_command(self):
+        """Find the command in the message."""
+        if self.target_id:
+            cmds = commands_with_target
+            idx = 2
+        else:
+            cmds = commands
+            idx = 1
+        if self.parts[idx].lower() in cmds:
+            return self.parts[idx].lower()
+        return None
+
+    def _extract_count(self):
+        if self.target_id:
+            idx = 2
+        else:
+            idx = 1
+        if self.parts[idx] == EMOJI:
+            return sum(part==EMOJI for part in self.parts[idx:])
+        else:
+            try:
+                return int(self.parts[idx])
+            except ValueError:
+                pass
+    '''
     # Use the following to catch and handle missing methods/properties as we want
     def __getattr__(self, name):
         def wrapper(*args, **kwargs):
             print "{} is an invalid statement.".format(name)
         return wrapper 
-
+    '''
+    
 
 #####################
 # Storing and retrieving data
@@ -121,21 +170,13 @@ def parse_slack_output(slack_rtm_output):
                 return extract_fireball_info(output)
     return None
 
-FireballInfo = namedtuple('FireballInfo', 'requestor_id target_id count valid channel command')
 
-USER_ID_PATTERN = '<@\w+>'
-user_id_re = re.compile(USER_ID_PATTERN)
-
-def extract_valid_user(user_str):
-    """Check if string is a valid user id.
-
-    Initially just checking for a valid pattern, but eventually need to check 
-    if ID is in Slack user list.
-    """
-    a = user_id_re.findall(user_str)
-    if len(a) > 0:
-        return a[0]
-    return None
+def is_valid_message(fireball_message):
+    """Determines if the message contained in the FireballMessage instance is valid."""
+    if (fireball_message.bot_is_first
+            and fireball_message.command):
+            return True
+    return False
 
 
 def extract_fireball_info(slack_msg):
@@ -144,67 +185,25 @@ def extract_fireball_info(slack_msg):
     If required info is missing or the format is not recognized, set valid=False 
     and return instance.
     """
-    fireball = Fireball()
-    is_valid_message = True
-    text = slack_msg['text']
-    parts = text.split()
-    requestor_id = '<@{}>'.format(slack_msg['user'])
-    channel = slack_msg['channel']
+    fireball = FireballMessage(slack_msg)
+
     # Make sure bot is first.
-    if parts[0] == AT_BOT:
-        # Get user id from second part.
-        target_id = extract_valid_user(parts[1])
-        # Make sure valid user was returned:
-        if target_id:
-            command = None
-            points = None
-            # Determine if emojis or an int was passed, or another command
-            if parts[2] == EMOJI:
-                # This is a give command. Count emoji's.
-                points = sum(part==EMOJI for part in parts[2:])
-                command = 'give'
-            elif parts[2].lower() == 'count':
-                # Need to return point count of target user.
-                command = 'count'
-            elif parts[2].lower() == 'all':
-                # Give all remaining points from requestor to target.
-                command = 'give'
-                points = get_user_points_remaining(requestor_id)
-            elif parts[2].lower() == 'leaderboard':
-                command = 'leaderboard'
-            else:
-                try:
-                    # This is a give command. Need to parse int.
-                    points = int(parts[2])
-                    command = 'give'
-                except ValueError:
-                    print('Error attempting to extract requested number of points.')
-            if command is None:
-                # If there is no command, message is invalid.
-                is_valid_message = False
-        else:
-            # If there is no target id, message is invalid.
-            is_valid_message = False
-    else:
-        # If bot name is not at the beginning of the message, message is invalid.
-        is_valid_message = False
-    if is_valid_message:
-        # Build a FireballInfo instance with information.
-        return FireballInfo(requestor_id=requestor_id, 
-                                target_id=target_id, 
-                                count=points, 
-                                valid=True,
-                                channel=channel,
-                                command=command)
-    else:
-        # Invalid message, so build a FireballInfo instance with some info.
-        return FireballInfo(requestor_id=requestor_id, 
-                            target_id=None, 
-                            count=None, 
-                            valid=False,
-                            channel=channel,
-                            command=None)
+    if fireball.bot_is_first:
+
+        # Handle `all` command.
+        if fireball.command == 'all':
+            fireball.command = 'give'
+            fireball.count = get_user_points_remaining(fireball.requestor_id)
     
+        # Determine if the `give` command was implied.
+        if (fireball.command is None
+                and fireball.target_id
+                and fireball.count):
+            fireball.command = 'give'
+    
+    fireball.valid = is_valid_message(fireball)
+    return fireball   
+
 
 def give_fireball(user_id, number_of_points):
     """If command contains a single username and either 
@@ -265,11 +264,11 @@ if __name__ == "__main__":
                         if check_points(fb_info.requestor_id, fb_info.count):
                             add_user_points_received(fb_info.target_id, fb_info.count)
                             add_user_points_used(fb_info.requestor_id, fb_info.count)
-                            msg = '{} gave {} fireballs to {}'.format(fb_info.requestor_id,
+                            msg = '{} gave {} fireballs to {}'.format(fb_info.requestor_id_formatted,
                                                                         fb_info.count,
                                                                         fb_info.target_id)
                         else:
-                            msg = '{} does not have enough points!'.format(fb_info.requestor_id)                           
+                            msg = '{} does not have enough points!'.format(fb_info.requestor_id_formatted)                           
                     elif fb_info.command == 'count':
                         count = get_user_points_received(fb_info.target_id)
                         msg = '{} has received {} points'.format(fb_info.target_id, count)
