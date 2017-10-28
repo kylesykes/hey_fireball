@@ -60,6 +60,9 @@ class RedisStorage(Storage):
     """Implementation of `Storage` that uses Redis.
     
     Redis server's URL should be in env var `REDIS_URL`.
+
+    key: username
+    value: hash(POINTS_USED, POINTS_RECEIVED)
     """
 
     POINTS_USED = 'POINTS_USED'
@@ -72,17 +75,21 @@ class RedisStorage(Storage):
             raise Exception('Redis package not installed!')
         self._redis = redis.from_url(os.environ.get("REDIS_URL"))
         
+    def _create_user_entry(user_id: str):
+        """Create new user entry and init fields."""
+        self._redis.hmset(user_id, {self.POINTS_USED:0, self.POINTS_RECEIVED:0})
+
     def user_exists(self, user_id: str):
         """Return True if user_id is in storage."""
-        pass
+        return redis.exists(user_id)
 
     def get_user_points_used(self, user_id: str):
         """Return number of points used or 0."""
-        pass
+        return self._redis.hget(user_id, self.POINTS_USED)
 
     def add_user_points_used(self, user_id: str, num: int):
         """Add `num` to user's total used points.""" 
-        pass
+        
 
     def get_user_points_received(self, user_id: str):
         """Return number of points received or 0."""
