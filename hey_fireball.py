@@ -73,6 +73,7 @@ class FireballMessage():
         else:
             cmds = commands
             idx = 1
+        # TODO: Check length of parts or error handler here.
         if self.parts[idx].lower() in cmds:
             return self.parts[idx].lower()
         return None
