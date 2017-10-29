@@ -1,15 +1,18 @@
+# Standard imports
 import os
 import time
 from collections import namedtuple
 import re 
 
-#import redis
+# 3rd party imports
 from slackclient import SlackClient
 
+# Same package imports
+import storage
 
-# creating redis connection
-#r = redis.from_url(os.environ.get("REDIS_URL"))
-
+# Storage info
+_storage = None
+STORAGE_TYPE = os.environ.get("STORAGE_TYPE", "inmemory")
 
 # starterbot's ID as an environment variable
 BOT_ID = os.environ.get("BOT_ID")
@@ -100,44 +103,51 @@ class FireballMessage():
 # Storing and retrieving data
 #####################
 
-# Dict for storing user-> {score:int, points_used_today}
-data = {}
+def set_storage(storage_type: str):
+    """Set the storage mechanism.
+    
+    Must be set before calling storge functions.
+    """
+    global _storage
+    storage_type = storage_type.lower()
+    if storage_type == 'inmemory':
+        _storage = storage.InMemoryStorage()
+    elif storage_type == 'redis':
+        _storage = storage.RedisStorage()
+    else:
+        raise ValueError('Unknown storage type.')
 
-POINTS_USED = 'POINTS_USED'
-POINTS_RECEIVED = 'POINTS_RECEIVED'
 
-def get_user_points_remaining(user_id):
+def get_user_points_remaining(user_id: str):
     """Return the number of points remaining for user."""
-    if user_id in data:
-        used_pts = data[user_id].get(POINTS_USED, 0)
+    if _storage.user_exists(user_id):
+        used_pts = _storage.get_user_points_used(user_id)
         return MAX_POINTS_PER_DAY - used_pts
     else:
         return MAX_POINTS_PER_DAY
 
 
-def add_user_points_used(user_id, num):
+def add_user_points_used(user_id: str, num: int):
     """Add `num` to user's total used points."""
-    user_data = data.setdefault(user_id, {})
-    user_data[POINTS_USED] = user_data.get(POINTS_USED, 0) + num
+    _storage.add_user_points_used(user_id, num)
 
 
-def get_user_points_received(user_id):
+def get_user_points_received(user_id: str):
     """Return the number of points received by this user."""
-    if user_id in data:
-        return data[user_id].get(POINTS_RECEIVED, 0)
+    if _storage.user_exists(user_id):
+        return _storage.get_user_points_received(user_id)
     else:
         return 0
 
 
-def add_user_points_received(user_id, num):
+def add_user_points_received(user_id: str, num: int):
     """Add `num` to user's total received points."""
-    user_data = data.setdefault(user_id, {})
-    user_data[POINTS_RECEIVED] = user_data.get(POINTS_RECEIVED, 0) + num
+    _storage.add_user_points_received(user_id, num)
 
 
 def get_users_and_scores():
     """Return list of (user, score) tuples."""
-    return [(k, v[POINTS_RECEIVED]) for k,v in data.items()]
+    return _storage.get_users_and_scores()
 
 
 #####################
@@ -238,6 +248,12 @@ def handle_command(fireball_message):
         msg = "Leaderboard"
         attach = generate_leaderboard()
 
+    elif fireball_message.command == '{}left'.format(POINTS):
+        # Return requestor's points remaining.
+        points_rmn = get_user_points_remaining(fireball_message.requestor_id)
+        msg = "{} has {} {} remaining".format(fireball_message.requestor_id,
+                                                points_rmn,
+                                                POINTS)
     else:
         # Message was not valid, so 
         msg = '{}: I do not understand your message. Try again!'.format(fireball_message.requestor_id)
@@ -296,6 +312,7 @@ def generate_leaderboard():
 
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second delay between reading from firehose
+    set_storage(STORAGE_TYPE)
     if slack_client.rtm_connect():
         print("HeyFireball connected and running!")
         while True:
