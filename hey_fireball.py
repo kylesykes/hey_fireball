@@ -248,6 +248,12 @@ def handle_command(fireball_message):
         msg = "Leaderboard"
         attach = generate_leaderboard()
 
+    elif fireball_message.command == '{}left'.format(POINTS):
+        # Return requestor's points remaining.
+        points_rmn = get_user_points_remaining(fireball_message.requestor_id)
+        msg = "{} has {} {} remaining".format(fireball_message.requestor_id,
+                                                points_rmn,
+                                                POINTS)
     else:
         # Message was not valid, so 
         msg = '{}: I do not understand your message. Try again!'.format(fireball_message.requestor_id)
