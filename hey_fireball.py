@@ -45,7 +45,10 @@ class FireballMessage():
         self.text = msg['text']
         self.parts = self.text.split()
         self.bot_is_first = self.parts[0] == AT_BOT
-        self.target_id = self._extract_valid_user(self.parts[1])
+        if self.bot_is_first: 
+            self.target_id = self._extract_valid_user(self.parts[1])
+        else:
+            self.target_id = self._extract_valid_user(self.parts[0])
         self.command = self._extract_command()
         self.count = self._extract_count()
         self.valid = None
@@ -67,29 +70,56 @@ class FireballMessage():
  
     def _extract_command(self):
         """Find the command in the message."""
-        if self.target_id:
-            cmds = commands_with_target
-            idx = 2
+        #TODO: Clean up this gnarly logic.  Stop hardcoding indices
+        if self.bot_is_first:
+            if self.target_id:
+                cmds = commands_with_target
+                idx = 2
+            else:
+                cmds = commands
+                idx = 1
+            # TODO: Check length of parts or error handler here.
+            if self.parts[idx].lower() in cmds:
+                return self.parts[idx].lower()
+            return None
         else:
-            cmds = commands
-            idx = 1
-        # TODO: Check length of parts or error handler here.
-        if self.parts[idx].lower() in cmds:
-            return self.parts[idx].lower()
-        return None
+            if self.target_id:
+                cmds = commands_with_target
+                idx = 1
+            else:
+                cmds = commands
+                idx = 0
+            # TODO: Check length of parts or error handler here.
+            if self.parts[idx].lower() in cmds:
+                return self.parts[idx].lower()
+            return None
 
     def _extract_count(self):
-        if self.target_id:
-            idx = 2
+        #TODO: Clean up this gnarly logic.  Stop hardcoding indices
+        if self.bot_is_first:
+            if self.target_id:
+                idx = 2
+            else:
+                idx = 1
+            if self.parts[idx] == EMOJI:
+                return sum(part==EMOJI for part in self.parts[idx:])
+            else:
+                try:
+                    return int(self.parts[idx])
+                except ValueError:
+                    pass
         else:
-            idx = 1
-        if self.parts[idx] == EMOJI:
-            return sum(part==EMOJI for part in self.parts[idx:])
-        else:
-            try:
-                return int(self.parts[idx])
-            except ValueError:
-                pass
+            if self.target_id:
+                idx = 1
+            else:
+                idx = 0
+            if self.parts[idx] == EMOJI:
+                return sum(part == EMOJI for part in self.parts[idx:])
+            else:
+                try:
+                    return int(self.parts[idx])
+                except ValueError:
+                    pass
     '''
     # Use the following to catch and handle missing methods/properties as we want
     def __getattr__(self, name):
@@ -163,7 +193,9 @@ def parse_slack_output(slack_rtm_output):
     output_list = slack_rtm_output
     if output_list and len(output_list) > 0:
         for output in output_list:
-            if output and 'text' in output and AT_BOT in output['text']:
+            if ((output and 'text' in output) and 
+                ((AT_BOT in output['text']) or
+                (EMOJI in output['text']))):
                 # This returns after finding the first message containing
                 # the bot name. Other messages in this output list will
                 # be ignored. This is how the example was set up. My 
@@ -175,9 +207,8 @@ def parse_slack_output(slack_rtm_output):
 
 def is_valid_message(fireball_message):
     """Determines if the message contained in the FireballMessage instance is valid."""
-    if (fireball_message.bot_is_first
-            and fireball_message.command):
-            return True
+    if fireball_message.command:
+        return True
     return False
 
 
@@ -189,20 +220,17 @@ def extract_fireball_info(slack_msg):
     """
     fireball = FireballMessage(slack_msg)
 
-    # Make sure bot is first.
-    if fireball.bot_is_first:
+    # Handle `all` command.
+    if fireball.command == 'all':
+        fireball.command = 'give'
+        fireball.count = get_user_points_remaining(fireball.requestor_id)
 
-        # Handle `all` command.
-        if fireball.command == 'all':
-            fireball.command = 'give'
-            fireball.count = get_user_points_remaining(fireball.requestor_id)
-    
-        # Determine if the `give` command was implied.
-        if (fireball.command is None
-                and fireball.target_id
-                and fireball.count):
-            fireball.command = 'give'
-    
+    # Determine if the `give` command was implied.
+    if (fireball.command is None
+            and fireball.target_id
+            and fireball.count):
+        fireball.command = 'give'
+        
     fireball.valid = is_valid_message(fireball)
     return fireball   
 
