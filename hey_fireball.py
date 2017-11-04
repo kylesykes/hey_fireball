@@ -103,6 +103,8 @@ class FireballMessage():
 # Storing and retrieving data
 #####################
 
+# TODO 1: Need to update these methods to use Total and Daily concepts.
+
 def set_storage(storage_type: str):
     """Set the storage mechanism.
     
@@ -120,6 +122,7 @@ def set_storage(storage_type: str):
 
 def get_user_points_remaining(user_id: str):
     """Return the number of points remaining for user."""
+    # TODO 1: Remove user_exists check
     if _storage.user_exists(user_id):
         used_pts = _storage.get_user_points_used(user_id)
         return MAX_POINTS_PER_DAY - used_pts
@@ -134,6 +137,7 @@ def add_user_points_used(user_id: str, num: int):
 
 def get_user_points_received(user_id: str):
     """Return the number of points received by this user."""
+    # TODO 1: Remove user_exists check
     if _storage.user_exists(user_id):
         return _storage.get_user_points_received(user_id)
     else:
