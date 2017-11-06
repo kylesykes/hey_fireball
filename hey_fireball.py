@@ -103,7 +103,6 @@ class FireballMessage():
 # Storing and retrieving data
 #####################
 
-# TODO 1: Need to update these methods to use Total and Daily concepts.
 
 def set_storage(storage_type: str):
     """Set the storage mechanism.
@@ -116,41 +115,35 @@ def set_storage(storage_type: str):
         _storage = storage.InMemoryStorage()
     elif storage_type == 'redis':
         _storage = storage.RedisStorage()
+    elif storage_type == 'azuretable':
+        _storage = storage.AzureTableStorage()
     else:
         raise ValueError('Unknown storage type.')
 
 
-def get_user_points_remaining(user_id: str):
-    """Return the number of points remaining for user."""
-    # TODO 1: Remove user_exists check
-    if _storage.user_exists(user_id):
-        used_pts = _storage.get_user_points_used(user_id)
-        return MAX_POINTS_PER_DAY - used_pts
-    else:
-        return MAX_POINTS_PER_DAY
-
+def get_user_points_remaining(user_id: str) -> int:
+    """Return the number of points remaining for user today."""
+    used_pts = _storage.get_user_points_used(user_id)
+    return MAX_POINTS_PER_DAY - used_pts
+    
 
 def add_user_points_used(user_id: str, num: int):
     """Add `num` to user's total used points."""
     _storage.add_user_points_used(user_id, num)
 
 
-def get_user_points_received(user_id: str):
-    """Return the number of points received by this user."""
-    # TODO 1: Remove user_exists check
-    if _storage.user_exists(user_id):
-        return _storage.get_user_points_received(user_id)
-    else:
-        return 0
+def get_user_points_received_total(user_id: str) -> int:
+    """Return the number of points received by this user total."""
+    return _storage.get_user_points_received_total(user_id)
 
 
 def add_user_points_received(user_id: str, num: int):
-    """Add `num` to user's total received points."""
+    """Add `num` to user's total and today's received points."""
     _storage.add_user_points_received(user_id, num)
 
 
-def get_users_and_scores():
-    """Return list of (user, score) tuples."""
+def get_users_and_scores() -> list:
+    """Return list of (user, total points received) tuples."""
     return _storage.get_users_and_scores()
 
 
@@ -240,11 +233,11 @@ def handle_command(fireball_message):
     elif fireball_message.command == POINTS:
         if fireball_message.target_id:
             # Return target's score.
-            score = get_user_points_received(fireball_message.target_id)
+            score = get_user_points_received_total(fireball_message.target_id)
             msg = '{} has received {} {}'.format(fireball_message.target_id, score, POINTS)
         else:
             # Return requestor's score.
-            score = get_user_points_received(fireball_message.requestor_id)
+            score = get_user_points_received_total(fireball_message.requestor_id)
             msg = '{} has received {} {}'.format(fireball_message.requestor_id, score, POINTS)
 
     elif fireball_message.command == 'leaderboard':

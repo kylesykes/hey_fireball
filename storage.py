@@ -28,29 +28,30 @@ class Storage():
     Class is responsible for ensuring users exists when
     querying/updating user data.
     """
-
+    ### Points used
     def get_user_points_used_total(self, user_id: str):
         """Return total number of points used or 0."""
         pass
 
     def get_user_points_used(self, user_id: str):
-        """Return number of points used or 0."""
+        """Return number of points used today or 0."""
         pass
 
     def add_user_points_used(self, user_id: str, num: int):
-        """Add `num` to user's total used points.""" 
+        """Add `num` to user's total and today's used points.""" 
         pass
 
+    ### Points received
     def get_user_points_received_total(self, user_id: str):
         """Return total number of points received or 0."""
         pass
 
     def get_user_points_received(self, user_id: str):
-        """Return number of points received or 0."""
+        """Return number of points received today or 0."""
         pass
 
     def add_user_points_received(self, user_id: str, num: int):
-        """Add `num` to user's total received points."""
+        """Add `num` to user's total and today's received points."""
         pass
 
     def get_users_and_scores_total(self):
@@ -70,7 +71,6 @@ class AzureTableStorage(Storage):
     PartitionKey: date by day, or Total
     RowKey: username
     Fields:
-        last_update: date of last update (only useful for Total records)
         received total: points received
         given total: points given
         negative total: negative points received
@@ -190,7 +190,7 @@ class AzureTableStorage(Storage):
     def get_user_points_used(self, user_id: str) -> int:
         """Return number of points used today or 0."""
         self._check_user(user_id)
-        select_query = "Timestamp,{}".format(self.POINTS_USED_TODAY)
+        select_query = "PartitionKey,RowKey,Timestamp,{}".format(self.POINTS_USED_TODAY)
         record = self._table_service.get_entity(self._table_name,
                                                 partition_key=self.TOTAL_PARTITION,
                                                 row_key=user_id,
@@ -207,7 +207,7 @@ class AzureTableStorage(Storage):
     def add_user_points_used(self, user_id: str, num: int):
         """Add `num` to user's total and daily used points."""
         self._check_user(user_id)
-        select_query = "Timestamp,{},{}".format(self.POINTS_USED_TODAY,
+        select_query = "PartitionKey,RowKey,Timestamp,{},{}".format(self.POINTS_USED_TODAY,
                                                 self.POINTS_USED_TOTAL)
         record = self._table_service.get_entity(self._table_name,
                                                 partition_key=self.TOTAL_PARTITION,
@@ -224,7 +224,11 @@ class AzureTableStorage(Storage):
             record[self.POINTS_USED_TODAY] += num
         # Add num to Total count.
         record[self.POINTS_USED_TOTAL] += num
-        self._table_service.merge_entity('users', record)
+        # # Add ParitiionKey
+        # record['PartitionKey'] = self.TOTAL_PARTITION
+        # # Add RowKey
+        # record['RowKey'] = user_id
+        self._table_service.merge_entity(self._table_name, record)
 
     def get_user_points_received_total(self, user_id: str) -> int:
         """Return total number of points received or 0."""
@@ -239,7 +243,7 @@ class AzureTableStorage(Storage):
     def get_user_points_received(self, user_id: str) -> int:
         """Return number of points received or 0."""
         self._check_user(user_id)
-        select_query = "Timestamp,{}".format(self.POINTS_RECEIVED_TODAY)
+        select_query = "PartitionKey,RowKey,Timestamp,{}".format(self.POINTS_RECEIVED_TODAY)
         record = self._table_service.get_entity(self._table_name,
                                                 partition_key=self.TOTAL_PARTITION,
                                                 row_key=user_id,
@@ -256,7 +260,7 @@ class AzureTableStorage(Storage):
     def add_user_points_received(self, user_id: str, num: int):
         """Add `num` to user's total received points."""
         self._check_user(user_id)
-        select_query = "Timestamp,{},{}".format(self.POINTS_RECEIVED_TODAY,
+        select_query = "PartitionKey,RowKey,Timestamp,{},{}".format(self.POINTS_RECEIVED_TODAY,
                                                 self.POINTS_RECEIVED_TOTAL)
         record = self._table_service.get_entity(self._table_name,
                                                 partition_key=self.TOTAL_PARTITION,
@@ -273,14 +277,13 @@ class AzureTableStorage(Storage):
             record[self.POINTS_RECEIVED_TODAY] += num
         # Add num to Total count.
         record[self.POINTS_RECEIVED_TOTAL] += num
-        self._table_service.merge_entity('users', record)
+        self._table_service.merge_entity(self._table_name, record)
 
     def get_users_and_scores_total(self) -> list:
         """Return list of tuples (user_id, points_received_total)."""
         filter_query = "PartitionKey eq '{partition}'".format(self.TOTAL_PARTITION)
-        select_query = "Timestamp,{},{}".format('RowKey',
-                                                self.POINTS_RECEIVED_TOTAL)
-        records = self._table_service.query_entites('users',
+        select_query = "Timestamp,RowKey,{}".format(self.POINTS_RECEIVED_TOTAL)
+        records = self._table_service.query_entites(self._table_name,
                                                     filter=filter_query,
                                                     select=select_query)
         return [(r['RowKey'], r[self.POINTS_RECEIVED_TOTAL]) for r in records]
@@ -288,12 +291,12 @@ class AzureTableStorage(Storage):
     @staticmethod
     def _get_today() -> datetime.date:
         """Return today's date as a string YYYY-MM-DD."""
-        return datetime.datetime.today()
+        return datetime.datetime.today() + datetime.timedelta(hours=6)
 
     @staticmethod
     def _get_today_str() -> str:
         """Return today's date as a string YYYY-MM-DD."""
-        return AzureTableStorage._get_today.strftime('%Y-%m-%d')
+        return AzureTableStorage._get_today().strftime('%Y-%m-%d')
 
     @staticmethod
     def _get_record_date(record: dict) -> datetime.date:
@@ -306,7 +309,7 @@ class AzureTableStorage(Storage):
         
         # TODO: Currently working in UTC and not accunting for TZ.
         """
-        return ts.date() == AzureTableStorage._get_today()
+        return ts.date() == AzureTableStorage._get_today().date()
 
 class RedisStorage(Storage):
     """Implementation of `Storage` that uses Redis.
