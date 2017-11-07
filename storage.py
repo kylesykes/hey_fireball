@@ -62,9 +62,9 @@ class AzureTableStorage(Storage):
     """Implementation of `Storage` that uses Azure Table Service.
     
     Env Var:
-        TABLE_ACCOUNT : table service account name
-        TABLE_KEY : table service key
-        TABLE_SAS : table service sas
+        ACCOUNT_NAME : table service account name
+        ACCOUNT_KEY : table service key
+        ACCOUNT_SAS : table service sas
         TABLE_NAME : name of the table
     Only one of TABLE_KEY or TABLE_SAS is needed.
 

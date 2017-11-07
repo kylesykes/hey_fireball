@@ -174,7 +174,7 @@ def add_user_points_received(user_id: str, num: int):
 
 def get_users_and_scores() -> list:
     """Return list of (user, total points received) tuples."""
-    return _storage.get_users_and_scores()
+    return _storage.get_users_and_scores_total()
 
 
 #####################
