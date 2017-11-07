@@ -283,7 +283,7 @@ class AzureTableStorage(Storage):
         """Return list of tuples (user_id, points_received_total)."""
         filter_query = "PartitionKey eq '{}'".format(self.TOTAL_PARTITION)
         select_query = "Timestamp,RowKey,{}".format(self.POINTS_RECEIVED_TOTAL)
-        records = self._table_service.query_entites(self._table_name,
+        records = self._table_service.query_entities(self._table_name,
                                                     filter=filter_query,
                                                     select=select_query)
         return [(r['RowKey'], r[self.POINTS_RECEIVED_TOTAL]) for r in records]
