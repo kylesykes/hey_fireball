@@ -376,25 +376,41 @@ class InMemoryStorage(Storage):
         # Check is Redis library is installed.
         self._data = dict()
 
+    def check_user(self, user_id: str):
+        """Check if user exists in storage and create a new entry if not."""
+        if not self.user_exists(user_id):
+            self.create_user_entry(user_id)
+
+    def create_user_entry(self, user_id: str):
+        """Create new user entry and init fields."""
+        self._data[user_id] = {
+            self.POINTS_USED : 0,
+            self.POINTS_RECEIVED : 0
+        }
+
     def user_exists(self, user_id: str):
         """Return True if user_id is in storage."""
         return user_id in self._data
 
     def get_user_points_used(self, user_id: str):
         """Return number of points used or 0."""
+        self.check_user(user_id=user_id)
         return self._data[user_id].get(self.POINTS_USED, 0)
 
     def add_user_points_used(self, user_id: str, num: int):
         """Add `num` to user's total used points."""
+        self.check_user(user_id=user_id)
         user_data = self._data.setdefault(user_id, {})
         user_data[self.POINTS_USED] = user_data.get(self.POINTS_USED, 0) + num
 
     def get_user_points_received(self, user_id: str):
         """Return number of points received or 0."""
+        self.check_user(user_id=user_id)
         return self._data[user_id].get(self.POINTS_RECEIVED, 0)
 
     def add_user_points_received(self, user_id: str, num: int):
         """Add `num` to user's total received points."""
+        self.check_user(user_id=user_id)
         user_data = self._data.setdefault(user_id, {})
         user_data[self.POINTS_RECEIVED] = user_data.get(self.POINTS_RECEIVED, 0) + num
 
