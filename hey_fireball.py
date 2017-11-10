@@ -358,7 +358,7 @@ def leaderboard_item(user, score, idx):
     """Generate a leaderboard item."""
     return    {
             "fallback": "{}: {}".format(user, score),
-            "color": colors[min(idx, len(colors))],
+            "color": colors[min(idx, len(colors) - 1)],
             "title":  "{}: {}".format(user, score)
         }
 
