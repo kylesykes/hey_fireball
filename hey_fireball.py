@@ -34,7 +34,7 @@ commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS)]
 commands_with_target = [POINTS, 'all']
 
 user_list = slack_client.api_call("users.list")['members']
-user_name_lookup = {x['id'] : x['name'] for x in user_list}
+user_name_lookup = {x['id'] : x['name'] for x in user_list}  # FH23H : kyle.sykes
 
 def get_username(user_id):
     try:
@@ -92,7 +92,8 @@ class FireballMessage():
         """
         a = FireballMessage._user_id_re.findall(user_str)
         if len(a) > 0:
-            return a[0]
+            if a[0][2:-1] in user_list.keys():
+                return a[0]
         return None
  
     def _extract_command(self):
@@ -369,7 +370,7 @@ def generate_leaderboard():
     if users_and_scores is not None:
         leaders = sorted(get_users_and_scores(), key=lambda tup: tup[1], reverse=True)
         # Create list of leaderboard items.
-        board = [leaderboard_item(get_username(tup[0][2:-1]), tup[1], idx) for idx, tup in enumerate(leaders)]
+        board = [leaderboard_item(get_username(tup[0][2:-1]), tup[1], idx) for idx, tup in enumerate(leaders[:10])]
         if len(board) > 0:
             # Add test to the first element.
             #board[0]["pretext"] = "Leaderboard"
