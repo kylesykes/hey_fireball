@@ -92,7 +92,7 @@ class FireballMessage():
         """
         a = FireballMessage._user_id_re.findall(user_str)
         if len(a) > 0:
-            if a[0][2:-1] in user_list.keys()
+            if a[0][2:-1] in user_list.keys():
                 return a[0]
         return None
  
