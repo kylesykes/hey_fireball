@@ -17,18 +17,20 @@ STORAGE_TYPE = os.environ.get("STORAGE_TYPE", "inmemory")
 
 # starterbot's ID as an environment variable
 BOT_ID = os.environ.get("BOT_ID")
+EMOJI = os.environ.get('EMOJI')
+POINTS = os.environ.get('POINTS')
 
 # constants
 AT_BOT = "<@" + BOT_ID + ">"
-EXAMPLE_COMMAND = "do"
+
 MAX_POINTS_PER_DAY = 5
-EMOJI = ':fireball:'
-POINTS = 'shots'
+#EMOJI = ':fireball:'
+#POINTS = 'shots'
 
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 
-commands = ['leaderboard', POINTS, '{}left'.format(POINTS)]
+commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS)]
 commands_with_target = [POINTS, 'all']
 
 user_list = slack_client.api_call("users.list")['members']
@@ -53,21 +55,24 @@ class FireballMessage():
         self.text = msg['text']
         self.parts = self.text.split()
         self.bot_is_first = self.parts[0] == AT_BOT
-        if self.bot_is_first: 
-            self.target_id = self._extract_valid_user(self.parts[1])
-            if self.target_id is not None:
-                self.target_id_only = self.target_id[2:-1]
-        else:
-            self.target_id = self._extract_valid_user(self.parts[0])
-            if self.target_id is not None:
-                self.target_id_only = self.target_id[2:-1]
-        try:
-            self.target_name = user_name_lookup[self.target_id_only]
-        except:
-            self.target_name = self.target_id
-        self.command = self._extract_command()
-        self.count = self._extract_count()
         self.valid = None
+        # Check if botname was the only token.
+        if len(self.parts) > 1:
+            # Extract target.
+            if self.bot_is_first: 
+                token = self.parts[1]
+            else:
+                token = self.parts[0] 
+            self.target_id = self._extract_valid_user(token)
+            if self.target_id is not None:
+                self.target_id_only = self.target_id[2:-1]
+            # Try to get target username.
+            try:
+                self.target_name = user_name_lookup[self.target_id_only]
+            except:
+                self.target_name = self.target_id
+            self.command = self._extract_command()
+            self.count = self._extract_count()
 
     def __str__(self):
         return str(vars(self))
@@ -289,15 +294,22 @@ def handle_command(fireball_message):
 
     elif fireball_message.command == 'leaderboard':
         # Post the leaderboard
-        msg = "Leaderboard"
+        msg = "HeyFireball Leaderboard"
         attach = generate_leaderboard()
         send_message_to = fireball_message.channel
+
+    elif fireball_message.command == 'fullboard':
+        # Post the leaderboard
+        msg = 'Leaderboard'
+        #attach = "Full HeyFireball Leaderboard\n" + generate_full_leaderboard()
+        attach = generate_full_leaderboard()
 
     elif fireball_message.command == f'{POINTS}left':
         # Return requestor's points remaining.
         points_rmn = get_user_points_remaining(fireball_message.requestor_name)
         msg = f"You have {points_rmn} {POINTS} remaining"
         send_message_to = fireball_message.requestor_id_only
+
     else:
         # Message was not valid, so 
         msg = f'{fireball_message.requestor_id}: I do not understand your message. Try again!'
@@ -306,7 +318,6 @@ def handle_command(fireball_message):
     # Post message to Slack.
     slack_client.api_call("chat.postMessage", channel=send_message_to, 
                           text=msg, as_user=True, attachments=attach)
-
 
 
 def give_fireball(user_id, number_of_points):
@@ -326,16 +337,16 @@ def check_points(user_id, number_of_points):
     """
     return get_user_points_remaining(user_id) >= number_of_points
 
-'''       
-colors = ['#36a64f',
-'#FF5733',
-'#DAF7A6',
-'#FFC300',
-'#C70039',
-'#900C3F'
-]
 '''
-colors= ['#d4af37', '#c0c0c0', '#cd7f32', '#36a64f']
+fireball color palette
+http://www.color-hex.com/color-palette/27418
+#f05500	(240,85,0)
+#ee2400	(238,36,0)
+#f4ac00	(244,172,0)
+#ffdb00	(255,219,0)
+#ff9a00
+'''
+colors = ['#d4af37', '#c0c0c0', '#cd7f32', '#36a64f']
 
 def leaderboard_item(user, score, idx):
     """Generate a leaderboard item."""
@@ -358,6 +369,20 @@ def generate_leaderboard():
         return board
     else:
         return
+
+def generate_full_leaderboard(full=False):
+    """Generate a formatted leaderboard."""
+    # Get sorted list of all users and their scores.
+    leaders = sorted(get_users_and_scores(), key=lambda tup: tup[1], reverse=True)
+    # Create list of leaderboard items.
+    text = '\n'.join([f'{idx + 1}. {tup[0][2:-1]} has {tup[1]} {POINTS}' for idx, tup in enumerate(leaders)])
+    text += '\n'.join(map(str, range(30)))
+    board = {'text':text, 'color':'#f05500'}
+
+    #ee2400
+    # Add test to the first element.
+    #board[0]["pretext"] = "HeyFireball Leaderboard"
+    return [board]
 
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second delay between reading from firehose

@@ -311,57 +311,57 @@ class AzureTableStorage(Storage):
         """
         return ts.date() == AzureTableStorage._get_today().date()
 
-class RedisStorage(Storage):
-    """Implementation of `Storage` that uses Redis.
+# class RedisStorage(Storage):
+#     """Implementation of `Storage` that uses Redis.
     
-    Redis server's URL should be in env var `REDIS_URL`.
+#     Redis server's URL should be in env var `REDIS_URL`.
 
-    key: username
-    value: hash(POINTS_USED, POINTS_RECEIVED)
-    """
+#     key: username
+#     value: hash(POINTS_USED, POINTS_RECEIVED)
+#     """
 
-    POINTS_USED = 'POINTS_USED'
-    POINTS_RECEIVED = 'POINTS_RECEIVED'
-    USERS_LIST_KEY = 'USERS_LIST'
+#     POINTS_USED = 'POINTS_USED'
+#     POINTS_RECEIVED = 'POINTS_RECEIVED'
+#     USERS_LIST_KEY = 'USERS_LIST'
 
-    def __init__(self):
-        super().__init__()
-        # Check is Redis library is installed.
-        try:
-            import redis
-        except ImportError:
-            raise Exception('Redis package not installed!')
-        self._redis = redis.from_url(os.environ.get("REDIS_URL"))
+#     def __init__(self):
+#         super().__init__()
+#         # Check is Redis library is installed.
+#         try:
+#             import redis
+#         except ImportError:
+#             raise Exception('Redis package not installed!')
+#         self._redis = redis.from_url(os.environ.get("REDIS_URL"))
         
-    def _create_user_entry(self, user_id: str):
-        """Create new user entry and init fields."""
-        self._redis.hmset(user_id, {self.POINTS_USED:0, self.POINTS_RECEIVED:0})
-        self._redis.sadd(self.USERS_LIST_KEY, user_id)
+    # def _create_user_entry(self, user_id: str):
+    #     """Create new user entry and init fields."""
+    #     self._redis.hmset(user_id, {self.POINTS_USED:0, self.POINTS_RECEIVED:0})
+    #     self._redis.sadd(self.USERS_LIST_KEY, user_id)
 
-    def user_exists(self, user_id: str):
-        """Return True if user_id is in storage."""
-        return self._redis.exists(user_id)
+    # def user_exists(self, user_id: str):
+    #     """Return True if user_id is in storage."""
+    #     return self._redis.exists(user_id)
 
-    def get_user_points_used(self, user_id: str):
-        """Return number of points used or 0."""
-        return int(self._redis.hget(user_id, self.POINTS_USED))
+    # def get_user_points_used(self, user_id: str):
+    #     """Return number of points used or 0."""
+    #     return int(self._redis.hget(user_id, self.POINTS_USED))
 
-    def add_user_points_used(self, user_id: str, num: int):
-        """Add `num` to user's total used points."""
-        self._redis.hincrby(user_id, self.POINTS_USED, num)
+    # def add_user_points_used(self, user_id: str, num: int):
+    #     """Add `num` to user's total used points."""
+    #     self._redis.hincrby(user_id, self.POINTS_USED, num)
 
-    def get_user_points_received(self, user_id: str):
-        """Return number of points received or 0."""
-        return int(self._redis.hget(user_id, self.POINTS_RECEIVED))
+    # def get_user_points_received(self, user_id: str):
+    #     """Return number of points received or 0."""
+    #     return int(self._redis.hget(user_id, self.POINTS_RECEIVED))
 
-    def add_user_points_received(self, user_id: str, num: int):
-        """Add `num` to user's total received points."""
-        self._redis.hincrby(user_id, self.POINTS_RECEIVED, num)
+    # def add_user_points_received(self, user_id: str, num: int):
+    #     """Add `num` to user's total received points."""
+    #     self._redis.hincrby(user_id, self.POINTS_RECEIVED, num)
 
-    def get_users_and_scores(self):
-        """Return list of tuples (user_id, points_received)."""
-        users = self._redis.smembers(self.USERS_LIST_KEY)
-        return [(user, self.get_user_points_received(user)) for user in users]
+    # def get_users_and_scores(self):
+    #     """Return list of tuples (user_id, points_received)."""
+    #     users = self._redis.smembers(self.USERS_LIST_KEY)
+    #     return [(user, self.get_user_points_received(user)) for user in users]
 
 
 class InMemoryStorage(Storage):
