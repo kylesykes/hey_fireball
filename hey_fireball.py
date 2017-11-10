@@ -3,6 +3,7 @@ import os
 import time
 from collections import namedtuple
 import re 
+import json
 
 # 3rd party imports
 from slackclient import SlackClient
@@ -32,6 +33,9 @@ slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS)]
 commands_with_target = [POINTS, 'all']
 
+user_list = slack_client.api_call("users.list")['members']
+user_name_lookup = {x['id'] : x['name'] for x in user_list}
+
 ################
 # FireballMessage class
 ################
@@ -42,19 +46,33 @@ class FireballMessage():
 
     def __init__(self, msg):
         self.requestor_id_only = msg['user']
-        self.requestor_id = '<@{}>'.format(self.requestor_id_only)
+        self.requestor_id = f'<@{self.requestor_id_only}>'
+        try:
+            self.requestor_name = user_name_lookup[self.requestor_id_only]
+        except:
+            self.requestor_name = self.requestor_id
         self.channel = msg['channel']
         self.text = msg['text']
         self.parts = self.text.split()
         self.bot_is_first = self.parts[0] == AT_BOT
+        self.valid = None
+        # Check if botname was the only token.
         if len(self.parts) > 1:
+            # Extract target.
             if self.bot_is_first: 
-                self.target_id = self._extract_valid_user(self.parts[1])
+                token = self.parts[1]
             else:
-                self.target_id = self._extract_valid_user(self.parts[0])
+                token = self.parts[0] 
+            self.target_id = self._extract_valid_user(token)
+            if self.target_id is not None:
+                self.target_id_only = self.target_id[2:-1]
+            # Try to get target username.
+            try:
+                self.target_name = user_name_lookup[self.target_id_only]
+            except:
+                self.target_name = self.target_id
             self.command = self._extract_command()
             self.count = self._extract_count()
-        self.valid = None
 
     def __str__(self):
         return str(vars(self))
@@ -253,28 +271,32 @@ def handle_command(fireball_message):
             add_user_points_received(fireball_message.target_id, fireball_message.count)
             # Add points to requestor points used.
             add_user_points_used(fireball_message.requestor_id, fireball_message.count)
-            msg = '{} gave {} {} to {}'.format(fireball_message.requestor_id,
-                                                        fireball_message.count,
-                                                        POINTS,
-                                                        fireball_message.target_id)
+            msg = f'You received {fireball_message.count} {POINTS} from {fireball_message.requestor_name}'
+            send_message_to = fireball_message.target_id_only
+            
+            
         else:
             # Requestor lacks enough points to give.
-            msg = '{} does not have enough {}!'.format(fireball_message.requestor_id, POINTS)    
+            msg = f'You do not have enough {POINTS}!'
+            send_message_to = fireball_message.requestor_id_only
 
     elif fireball_message.command == POINTS:
         if fireball_message.target_id:
             # Return target's score.
             score = get_user_points_received_total(fireball_message.target_id)
-            msg = '{} has received {} {}'.format(fireball_message.target_id, score, POINTS)
+            msg = f'{fireball_message.target_name} has received {score} {POINTS}'
+            send_message_to = fireball_message.channel
         else:
             # Return requestor's score.
             score = get_user_points_received_total(fireball_message.requestor_id)
-            msg = '{} has received {} {}'.format(fireball_message.requestor_id, score, POINTS)
+            msg = f'{fireball_message.requestor_name} has received {score} {POINTS}'
+            send_message_to = fireball_message.channel
 
     elif fireball_message.command == 'leaderboard':
         # Post the leaderboard
         msg = "HeyFireball Leaderboard"
         attach = generate_leaderboard()
+        send_message_to = fireball_message.channel
 
     elif fireball_message.command == 'fullboard':
         # Post the leaderboard
@@ -282,20 +304,20 @@ def handle_command(fireball_message):
         #attach = "Full HeyFireball Leaderboard\n" + generate_full_leaderboard()
         attach = generate_full_leaderboard()
 
-    elif fireball_message.command == '{}left'.format(POINTS):
+    elif fireball_message.command == f'{POINTS}left':
         # Return requestor's points remaining.
-        points_rmn = get_user_points_remaining(fireball_message.requestor_id)
-        msg = "{} has {} {} remaining".format(fireball_message.requestor_id,
-                                                points_rmn,
-                                                POINTS)
+        points_rmn = get_user_points_remaining(fireball_message.requestor_name)
+        msg = f"You have {points_rmn} {POINTS} remaining"
+        send_message_to = fireball_message.requestor_id_only
+
     else:
         # Message was not valid, so 
-        msg = '{}: I do not understand your message. Try again!'.format(fireball_message.requestor_id)
+        msg = f'{fireball_message.requestor_id}: I do not understand your message. Try again!'
+        send_message_to = fireball_message.channel
     
     # Post message to Slack.
-    slack_client.api_call("chat.postMessage", channel=fireball_message.channel, 
-                    text=msg, as_user=True, attachments=attach)
-
+    slack_client.api_call("chat.postMessage", channel=send_message_to, 
+                          text=msg, as_user=True, attachments=attach)
 
 
 def give_fireball(user_id, number_of_points):
@@ -337,12 +359,16 @@ def leaderboard_item(user, score, idx):
 def generate_leaderboard():
     """Generate a formatted leaderboard."""
     # Get sorted list of all users and their scores.
-    leaders = sorted(get_users_and_scores(), key=lambda tup: tup[1], reverse=True)
-    # Create list of leaderboard items.
-    board = [leaderboard_item(tup[0], tup[1], idx) for idx, tup in enumerate(leaders[:10])]
-    # Add test to the first element.
-    #board[0]["pretext"] = "HeyFireball Leaderboard"
-    return board
+    users_and_scores = get_users_and_scores()
+    if users_and_scores is not None:
+        leaders = sorted(get_users_and_scores(), key=lambda tup: tup[1], reverse=True)
+        # Create list of leaderboard items.
+        board = [leaderboard_item(tup[0], tup[1], idx) for idx, tup in enumerate(leaders)]
+        # Add test to the first element.
+        board[0]["pretext"] = "HeyFireball Leaderboard"
+        return board
+    else:
+        return
 
 def generate_full_leaderboard(full=False):
     """Generate a formatted leaderboard."""
