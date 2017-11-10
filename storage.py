@@ -300,7 +300,7 @@ class AzureTableStorage(Storage):
 
     @staticmethod
     def _get_record_date(record: dict) -> datetime.date:
-        """Retrieves the TZ aware date from Azure Table entity."""
+        """Retrieves the TZ aware date from Azure Table entity in UTC."""
         return record['Timestamp'].date().strftime('%Y-%m-%d')
 
     @staticmethod

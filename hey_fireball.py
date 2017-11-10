@@ -36,6 +36,12 @@ commands_with_target = [POINTS, 'all']
 user_list = slack_client.api_call("users.list")['members']
 user_name_lookup = {x['id'] : x['name'] for x in user_list}
 
+def get_username(user_id):
+    try:
+        return user_name_lookup[user_id]
+    except KeyError:
+        return user_id
+
 ################
 # FireballMessage class
 ################
@@ -274,7 +280,6 @@ def handle_command(fireball_message):
             msg = f'You received {fireball_message.count} {POINTS} from {fireball_message.requestor_name}'
             send_message_to = fireball_message.target_id_only
             
-            
         else:
             # Requestor lacks enough points to give.
             msg = f'You do not have enough {POINTS}!'
@@ -294,7 +299,7 @@ def handle_command(fireball_message):
 
     elif fireball_message.command == 'leaderboard':
         # Post the leaderboard
-        msg = "HeyFireball Leaderboard"
+        msg = "Leaderboard"
         attach = generate_leaderboard()
         send_message_to = fireball_message.channel
 
@@ -303,6 +308,7 @@ def handle_command(fireball_message):
         msg = 'Leaderboard'
         #attach = "Full HeyFireball Leaderboard\n" + generate_full_leaderboard()
         attach = generate_full_leaderboard()
+        send_message_to = fireball_message.channel
 
     elif fireball_message.command == f'{POINTS}left':
         # Return requestor's points remaining.
@@ -363,9 +369,13 @@ def generate_leaderboard():
     if users_and_scores is not None:
         leaders = sorted(get_users_and_scores(), key=lambda tup: tup[1], reverse=True)
         # Create list of leaderboard items.
-        board = [leaderboard_item(tup[0], tup[1], idx) for idx, tup in enumerate(leaders)]
-        # Add test to the first element.
-        board[0]["pretext"] = "HeyFireball Leaderboard"
+        board = [leaderboard_item(get_username(tup[0][2:-1]), tup[1], idx) for idx, tup in enumerate(leaders)]
+        if len(board) > 0:
+            # Add test to the first element.
+            #board[0]["pretext"] = "Leaderboard"
+            pass
+        else:
+            board = [{"text": f"No users yet. Start giving {POINTS}!!!"}]
         return board
     else:
         return
@@ -375,8 +385,9 @@ def generate_full_leaderboard(full=False):
     # Get sorted list of all users and their scores.
     leaders = sorted(get_users_and_scores(), key=lambda tup: tup[1], reverse=True)
     # Create list of leaderboard items.
-    text = '\n'.join([f'{idx + 1}. {tup[0][2:-1]} has {tup[1]} {POINTS}' for idx, tup in enumerate(leaders)])
-    text += '\n'.join(map(str, range(30)))
+    text = '\n'.join([f'{idx + 1}. {get_username(tup[0][2:-1])} has {tup[1]} {POINTS}' for idx, tup in enumerate(leaders)])
+    if len(text) == 0:
+        text = f"No users yet. Start giving {POINTS}!!!"
     board = {'text':text, 'color':'#f05500'}
 
     #ee2400
