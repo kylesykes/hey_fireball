@@ -34,7 +34,7 @@ commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS)]
 commands_with_target = [POINTS, 'all']
 
 user_list = slack_client.api_call("users.list")['members']
-user_name_lookup = {x['id'] : x['name'] for x in user_list}  # FH23H : kyle.sykes
+user_name_lookup = {x['id'] : x['name'] for x in user_list}  # U1A1A1A1A : kyle.sykes
 
 def get_username(user_id):
     try:
@@ -182,6 +182,7 @@ def set_storage(storage_type: str):
 def get_user_points_remaining(user_id: str) -> int:
     """Return the number of points remaining for user today."""
     used_pts = _storage.get_user_points_used(user_id)
+    print(used_pts)
     return MAX_POINTS_PER_DAY - used_pts
     
 
@@ -313,7 +314,7 @@ def handle_command(fireball_message):
 
     elif fireball_message.command == f'{POINTS}left':
         # Return requestor's points remaining.
-        points_rmn = get_user_points_remaining(fireball_message.requestor_name)
+        points_rmn = get_user_points_remaining(fireball_message.requestor_id)
         msg = f"You have {points_rmn} {POINTS} remaining"
         send_message_to = fireball_message.requestor_id_only
 
