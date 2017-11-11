@@ -182,7 +182,6 @@ def set_storage(storage_type: str):
 def get_user_points_remaining(user_id: str) -> int:
     """Return the number of points remaining for user today."""
     used_pts = _storage.get_user_points_used(user_id)
-    print(used_pts)
     return MAX_POINTS_PER_DAY - used_pts
     
 
