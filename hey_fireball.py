@@ -19,6 +19,7 @@ STORAGE_TYPE = os.environ.get("STORAGE_TYPE", "inmemory")
 BOT_ID = os.environ.get("BOT_ID")
 EMOJI = os.environ.get('EMOJI')
 POINTS = os.environ.get('POINTS')
+SELF_POINTS = os.environ.get('SELF_POINTS', "DISALLOW")
 
 # constants
 AT_BOT = "<@" + BOT_ID + ">"
@@ -30,7 +31,7 @@ MAX_POINTS_PER_DAY = 5
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 
-commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS)]
+commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS), 'setpm']
 commands_with_target = [POINTS, 'all']
 
 user_list = slack_client.api_call("users.list")['members']
@@ -47,7 +48,7 @@ def get_username(user_id):
 ################
 class FireballMessage():
 
-    _USER_ID_PATTERN = '<@\w+>'
+    _USER_ID_PATTERN = '^<@\w+>$'
     _user_id_re = re.compile(_USER_ID_PATTERN)
 
     def __init__(self, msg):
@@ -79,6 +80,7 @@ class FireballMessage():
                 self.target_name = self.target_id
             self.command = self._extract_command()
             self.count = self._extract_count()
+            self.setting = self._extract_setting()
 
     def __str__(self):
         return str(vars(self))
@@ -148,6 +150,27 @@ class FireballMessage():
                     return int(self.parts[idx])
                 except ValueError:
                     pass
+
+    def _extract_setting(self):
+        if self.bot_is_first:
+            idx = 2
+            try:
+                self.parts[idx]
+            except IndexError:
+                # Act as a toggle
+                if get_pm_preference(self.requestor_id):
+                    print('setting off via toggle')
+                    return 0
+                else:
+                    print('setting on via toggle')
+                    return 1
+            if self.parts[idx].lower() == 'on':
+                print('setting on via command')
+                return 1
+            elif self.parts[idx].lower() == 'off':
+                print('setting off via command')
+                return 0
+
     '''
     # Use the following to catch and handle missing methods/properties as we want
     def __getattr__(self, name):
@@ -155,7 +178,7 @@ class FireballMessage():
             print "{} is an invalid statement.".format(name)
         return wrapper 
     '''
-    
+
 
 #####################
 # Storing and retrieving data
@@ -203,6 +226,14 @@ def add_user_points_received(user_id: str, num: int):
 def get_users_and_scores() -> list:
     """Return list of (user, total points received) tuples."""
     return _storage.get_users_and_scores_total()
+
+def get_pm_preference(user_id: str) -> int:
+    """Return user's PM Preference"""
+    return _storage.get_pm_preference(user_id)
+
+def set_pm_preference(user_id: str, pref: int):
+    """Set user's PM Preference"""
+    _storage.set_pm_preference(user_id, pref)
 
 
 #####################
@@ -272,8 +303,12 @@ def handle_command(fireball_message):
     msg = ''
     attach = None
     if fireball_message.command == 'give':
+        # Check if self points are allowed.
+        if SELF_POINTS == 'DISALLOW' and (fireball_message.requestor_id == fireball_message.target_id):
+            msg = 'You cannot give points to yourself!'
+            send_message_to = fireball_message.requestor_id_only
         # Determine if requestor has enough points to give.
-        if check_points(fireball_message.requestor_id, fireball_message.count):
+        elif check_points(fireball_message.requestor_id, fireball_message.count):
             # Add points to target score.
             add_user_points_received(fireball_message.target_id, fireball_message.count)
             # Add points to requestor points used.
@@ -313,18 +348,41 @@ def handle_command(fireball_message):
 
     elif fireball_message.command == f'{POINTS}left':
         # Return requestor's points remaining.
-        points_rmn = get_user_points_remaining(fireball_message.requestor_name)
+        points_rmn = get_user_points_remaining(fireball_message.requestor_id)
         msg = f"You have {points_rmn} {POINTS} remaining"
         send_message_to = fireball_message.requestor_id_only
+    
+    elif fireball_message.command == 'setpm':
+        setting = fireball_message.setting
+        set_pm_preference(fireball_message.requestor_id, setting)
+        if setting:
+            msg = f"I will start sending PM's to {fireball_message.requestor_name}."
+        else:
+            msg = f"I will stop sending PM's to {fireball_message.requestor_name}."
+        send_message_to = fireball_message.requestor_id_only
+
+#    elif fireball_message.command == 'setpm':
+#        if get_pm_preference(fireball_message.requestor_id) == 1:
+#            set_pm_preference(fireball_message.requestor_id, 0)
+#            msg = f'I will no longer send PM\'s to {fireball_message.requestor_name}.'
+#            send_message_to = fireball_message.requestor_id_only
+#        else:
+#            set_pm_preference(fireball_message.requestor_id, 1)
+#            msg = f'I will start sending PM\'s to {fireball_message.requestor_name}'
+#            send_message_to = fireball_message.requestor_id_only
 
     else:
-        # Message was not valid, so 
+        # Message was not valid, so
         msg = f'{fireball_message.requestor_id}: I do not understand your message. Try again!'
         send_message_to = fireball_message.channel
-    
     # Post message to Slack.
-    slack_client.api_call("chat.postMessage", channel=send_message_to, 
-                          text=msg, as_user=True, attachments=attach)
+    if get_pm_preference(fireball_message.requestor_id_only) == 0 and send_message_to == fireball_message.requestor_id_only:
+        slack_client.api_call("chat.postEphemeral", channel=fireball_message.channel,
+                              text=msg, user=fireball_message.requestor_id_only,
+                              as_user=True, attachments=attach)
+    else:
+        slack_client.api_call("chat.postMessage", channel=send_message_to,
+                              text=msg, as_user=True, attachments=attach)
 
 
 def give_fireball(user_id, number_of_points):

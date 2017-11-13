@@ -58,6 +58,15 @@ class Storage():
         """Return list of tuples (user_id, points_received_total)."""
         pass
 
+    ### PM Preferences
+    def get_pm_preference(self, user_id: str):
+        """Return user's PM Preference"""
+        pass
+
+    def set_pm_preference(self, user_id: str, pref: int):
+        """Set user's PM Preference"""
+        pass
+
 class AzureTableStorage(Storage):
     """Implementation of `Storage` that uses Azure Table Service.
     
@@ -370,6 +379,7 @@ class InMemoryStorage(Storage):
 
     POINTS_USED = 'POINTS_USED'
     POINTS_RECEIVED = 'POINTS_RECEIVED'
+    PM_PREFERENCE = 'PM_PREFERENCE'
 
     def __init__(self):
         super().__init__()
@@ -385,7 +395,8 @@ class InMemoryStorage(Storage):
         """Create new user entry and init fields."""
         self._data[user_id] = {
             self.POINTS_USED : 0,
-            self.POINTS_RECEIVED : 0
+            self.POINTS_RECEIVED : 0,
+            self.PM_PREFERENCE : 0
         }
 
     def user_exists(self, user_id: str):
@@ -417,3 +428,14 @@ class InMemoryStorage(Storage):
     def get_users_and_scores(self):
         """Return list of tuples (user_id, points_received)."""
         return [(k, v[self.POINTS_RECEIVED]) for k,v in self._data.items()]
+
+    def get_pm_preference(self, user_id: str):
+        """Return user's PM Preference"""
+        self.check_user(user_id=user_id)
+        return self._data[user_id].get(self.PM_PREFERENCE)
+
+    def set_pm_preference(self, user_id: str, pref: int):
+        """Set user's PM Preference"""
+        self.check_user(user_id=user_id)
+        user_data = self._data.setdefault(user_id, {})
+        user_data[self.PM_PREFERENCE] = pref
