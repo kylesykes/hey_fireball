@@ -107,6 +107,7 @@ class AzureTableStorage(Storage):
     POINTS_RECEIVED_TODAY = 'POINTS_RECEIVED_TODAY'
     NEGATIVE_POINTS_USED_TODAY = 'NEGATIVE_POINTS_USED_TODAY'
     USERS_LIST = 'USERS_LIST'
+    PM_PREFERENCE = 'PM_PREFERENCE'
     TOTAL_PARTITION = 'TOTAL'
 
     def __init__(self):
@@ -129,14 +130,15 @@ class AzureTableStorage(Storage):
     def _create_user_entry(self, user_id: str):
         """Create new user entry and init fields."""
         self._table_service.insert_entity(self._table_name,
-                                            {'PartitionKey':self.TOTAL_PARTITION,
-                                            'RowKey': user_id,
-                                            self.POINTS_RECEIVED_TOTAL: 0,
-                                            self.POINTS_USED_TOTAL: 0,
-                                            self.NEGATIVE_POINTS_USED_TOTAL: 0,
-                                            self.POINTS_RECEIVED_TODAY: 0,
-                                            self.POINTS_USED_TODAY: 0,
-                                            self.NEGATIVE_POINTS_USED_TODAY: 0})
+                                          {'PartitionKey':self.TOTAL_PARTITION,
+                                           'RowKey': user_id,
+                                           self.POINTS_RECEIVED_TOTAL: 0,
+                                           self.POINTS_USED_TOTAL: 0,
+                                           self.NEGATIVE_POINTS_USED_TOTAL: 0,
+                                           self.POINTS_RECEIVED_TODAY: 0,
+                                           self.POINTS_USED_TODAY: 0,
+                                           self.NEGATIVE_POINTS_USED_TODAY: 0,
+                                           self.PM_PREFERENCE: 1})
         self._users.add(user_id)
 
     def _user_exists(self, user_id: str) -> bool:
@@ -297,6 +299,25 @@ class AzureTableStorage(Storage):
                                                     select=select_query)
         return [(r['RowKey'], r[self.POINTS_RECEIVED_TOTAL]) for r in records]
 
+    def get_pm_preference(self, user_id: str) -> int:
+        """Return user's PM Preference"""
+        self._check_user(user_id)
+        record = self._table_service.get_entity(self._table_name,
+                                                partition_key=self.TOTAL_PARTITION,
+                                                row_key=user_id,
+                                                select=self.PM_PREFERENCE)
+        return record[self.PM_PREFERENCE]
+
+    def set_pm_preference(self, user_id: str, pref: int):
+        """Set user's PM Preference"""
+        self._check_user(user_id)
+        record = self._table_service.get_entity(self._table_name,
+                                                partition_key=self.TOTAL_PARTITION,
+                                                row_key=user_id,
+                                                select=self.PM_PREFERENCE)
+        record[self.PM_PREFERENCE] = pref
+        self._table_service.merge_entity(self._table_name, record)
+
     @staticmethod
     def _get_today() -> datetime.date:
         """Return today's date as a string YYYY-MM-DD."""
@@ -396,7 +417,7 @@ class InMemoryStorage(Storage):
         self._data[user_id] = {
             self.POINTS_USED : 0,
             self.POINTS_RECEIVED : 0,
-            self.PM_PREFERENCE : 0
+            self.PM_PREFERENCE : 1
         }
 
     def user_exists(self, user_id: str):
