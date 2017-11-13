@@ -353,6 +353,7 @@ class AzureTableStorage(Storage):
 #     POINTS_USED = 'POINTS_USED'
 #     POINTS_RECEIVED = 'POINTS_RECEIVED'
 #     USERS_LIST_KEY = 'USERS_LIST'
+#     PM_PREFERENCE = 'PM_PREFERENCE'
 
 #     def __init__(self):
 #         super().__init__()
@@ -365,7 +366,7 @@ class AzureTableStorage(Storage):
         
     # def _create_user_entry(self, user_id: str):
     #     """Create new user entry and init fields."""
-    #     self._redis.hmset(user_id, {self.POINTS_USED:0, self.POINTS_RECEIVED:0})
+    #     self._redis.hmset(user_id, {self.POINTS_USED:0, self.POINTS_RECEIVED:0, self.PM_PREFERENCE:1})
     #     self._redis.sadd(self.USERS_LIST_KEY, user_id)
 
     # def user_exists(self, user_id: str):
@@ -392,6 +393,14 @@ class AzureTableStorage(Storage):
     #     """Return list of tuples (user_id, points_received)."""
     #     users = self._redis.smembers(self.USERS_LIST_KEY)
     #     return [(user, self.get_user_points_received(user)) for user in users]
+
+    # def get_pm_preference(self, user_id: str) -> int:
+    #     """Return user's PM Preference"""
+    #     return int(self._redis.hget(user_id, self.PM_PREFERENCE))
+
+    # def set_pm_preference(self, user_id: str, pref: int):
+    #     """Set user's PM Preference"""
+    #     self._redis.hmset(user_id, self.PM_PREFERENCE:pref)
 
 
 class InMemoryStorage(Storage):
