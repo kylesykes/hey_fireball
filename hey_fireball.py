@@ -19,6 +19,7 @@ STORAGE_TYPE = os.environ.get("STORAGE_TYPE", "inmemory")
 BOT_ID = os.environ.get("BOT_ID")
 EMOJI = os.environ.get('EMOJI')
 POINTS = os.environ.get('POINTS')
+SELF_POINTS = os.environ.get('SELF_POINTS', "DISALLOW")
 
 # constants
 AT_BOT = "<@" + BOT_ID + ">"
@@ -34,7 +35,7 @@ commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS)]
 commands_with_target = [POINTS, 'all']
 
 user_list = slack_client.api_call("users.list")['members']
-user_name_lookup = {x['id'] : x['name'] for x in user_list}  # FH23H : kyle.sykes
+user_name_lookup = {x['id'] : x['name'] for x in user_list}  # U1A1A1A1A : kyle.sykes
 
 def get_username(user_id):
     try:
@@ -47,7 +48,7 @@ def get_username(user_id):
 ################
 class FireballMessage():
 
-    _USER_ID_PATTERN = '<@\w+>'
+    _USER_ID_PATTERN = '^<@\w+>$'
     _user_id_re = re.compile(_USER_ID_PATTERN)
 
     def __init__(self, msg):
@@ -272,8 +273,13 @@ def handle_command(fireball_message):
     msg = ''
     attach = None
     if fireball_message.command == 'give':
+        # Check if self points are allowed.
+        if SELF_POINTS == 'DISALLOW' and (fireball_message.requestor_id == fireball_message.target_id):
+            msg = 'You cannot give points to yourself!'
+            send_message_to = fireball_message.requestor_id_only
+
         # Determine if requestor has enough points to give.
-        if check_points(fireball_message.requestor_id, fireball_message.count):
+        elif check_points(fireball_message.requestor_id, fireball_message.count):
             # Add points to target score.
             add_user_points_received(fireball_message.target_id, fireball_message.count)
             # Add points to requestor points used.
@@ -313,7 +319,7 @@ def handle_command(fireball_message):
 
     elif fireball_message.command == f'{POINTS}left':
         # Return requestor's points remaining.
-        points_rmn = get_user_points_remaining(fireball_message.requestor_name)
+        points_rmn = get_user_points_remaining(fireball_message.requestor_id)
         msg = f"You have {points_rmn} {POINTS} remaining"
         send_message_to = fireball_message.requestor_id_only
 
