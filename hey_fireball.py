@@ -157,7 +157,7 @@ class FireballMessage():
                 idx = 1
             if self.parts[idx] == EMOJI:
                 return sum(part == EMOJI for part in self.parts[idx:])
-            elif NEG_POINTS == 'ALLOW' and self.parts[idx] == NEGATIVE_EMOJI:
+            elif self.parts[idx] == NEGATIVE_EMOJI:
                 return sum(part == NEGATIVE_EMOJI for part in self.parts[idx:])
             else:
                 try:
@@ -171,7 +171,7 @@ class FireballMessage():
                 idx = 0
             if self.parts[idx] == EMOJI:
                 return sum(part == EMOJI for part in self.parts[idx:])
-            elif NEG_POINTS == 'ALLOW' and self.parts[idx] == NEGATIVE_EMOJI:
+            elif self.parts[idx] == NEGATIVE_EMOJI:
                 return sum(part == NEGATIVE_EMOJI for part in self.parts[idx:])
             else:
                 try:
