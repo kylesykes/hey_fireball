@@ -19,7 +19,7 @@ STORAGE_TYPE = os.environ.get("STORAGE_TYPE", "inmemory")
 BOT_ID = os.environ.get("BOT_ID")
 EMOJI = os.environ.get('EMOJI')
 POINTS = os.environ.get('POINTS')
-SELF_POINTS = os.environ.get('SELF_POINTS', "DISALLOW")
+SELF_POINTS = os.environ.get('SELF_POINTS', "ALLOW")
 NEG_POINTS = os.environ.get('NEG_POINTS', "ALLOW")
 
 if NEG_POINTS == "ALLOW":
@@ -87,6 +87,7 @@ class FireballMessage():
             except:
                 self.target_name = self.target_id
             self.command = self._extract_command()
+            self.type = self._extract_type()
             self.count = self._extract_count()
 
     def __str__(self):
@@ -130,6 +131,22 @@ class FireballMessage():
             if self.parts[idx].lower() in cmds:
                 return self.parts[idx].lower()
             return None
+
+    def _extract_type(self):
+        if self.bot_is_first:
+            if self.target_id:
+                idx = 2
+            else:
+                idx = 1
+            if self.parts[idx] == EMOJI:
+                return EMOJI
+            elif self.parts[idx] == NEGATIVE_EMOJI:
+                return NEGATIVE_EMOJI
+            else:
+                try:
+                    return str(self.parts[idx])
+                except ValueError:
+                    pass
 
     def _extract_count(self):
         #TODO: Clean up this gnarly logic.  Stop hardcoding indices
@@ -197,6 +214,11 @@ def get_user_points_remaining(user_id: str) -> int:
     used_pts = _storage.get_user_points_used(user_id)
     return MAX_POINTS_PER_DAY - used_pts
 
+def get_user_neg_points_remaining(user_id: str) -> int:
+    """Return the number of negative points remaining for user today"""
+    used_pts = _storage.get_user_neg_points_used(user_id)
+    return MAX_NEG_POINTS_PER_DAY - used_pts
+
 def add_user_points_used(user_id: str, num: int):
     """Add `num` to user's total used points."""
     _storage.add_user_points_used(user_id, num)
@@ -262,12 +284,19 @@ def extract_fireball_info(slack_msg):
         fireball.command = 'give'
         fireball.count = get_user_points_remaining(fireball.requestor_id)
 
+    if fireball.command == 'allneg':
+        fireball.command = 'giveneg'
+        fireball.count = get_user_neg_points_remaining(fireball.requestor_id)
+
     # Determine if the `give` command was implied.
     if (fireball.command is None
             and fireball.target_id
             and fireball.count):
-        fireball.command = 'give'
-        
+        if fireball.type == EMOJI:
+            fireball.command = 'give'
+        elif fireball.type == NEGATIVE_EMOJI:
+            fireball.command = 'giveneg'
+
     fireball.valid = is_valid_message(fireball)
     return fireball   
 
