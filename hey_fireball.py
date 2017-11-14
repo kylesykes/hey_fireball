@@ -35,7 +35,7 @@ commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS), 'setpm'
 commands_with_target = [POINTS, 'all']
 
 user_list = slack_client.api_call("users.list")['members']
-user_name_lookup = {x['id'] : x['name'] for x in user_list}  # FH23H : kyle.sykes
+user_name_lookup = {x['id'] : x['name'] for x in user_list}  # U1A1A1A1A : kyle.sykes
 
 def get_username(user_id):
     try:
