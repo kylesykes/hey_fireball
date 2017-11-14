@@ -159,16 +159,12 @@ class FireballMessage():
             except IndexError:
                 # Act as a toggle
                 if get_pm_preference(self.requestor_id):
-                    print('setting off via toggle')
                     return 0
                 else:
-                    print('setting on via toggle')
                     return 1
             if self.parts[idx].lower() == 'on':
-                print('setting on via command')
                 return 1
             elif self.parts[idx].lower() == 'off':
-                print('setting off via command')
                 return 0
 
     '''
@@ -315,7 +311,7 @@ def handle_command(fireball_message):
             add_user_points_used(fireball_message.requestor_id, fireball_message.count)
             msg = f'You received {fireball_message.count} {POINTS} from {fireball_message.requestor_name}'
             send_message_to = fireball_message.target_id_only
-            
+
         else:
             # Requestor lacks enough points to give.
             msg = f'You do not have enough {POINTS}!'
@@ -353,9 +349,8 @@ def handle_command(fireball_message):
         send_message_to = fireball_message.requestor_id_only
     
     elif fireball_message.command == 'setpm':
-        setting = fireball_message.setting
-        set_pm_preference(fireball_message.requestor_id, setting)
-        if setting:
+        set_pm_preference(fireball_message.requestor_id, fireball_message.setting)
+        if fireball_message.setting:
             msg = "PM Preference: On"
         else:
             msg = "PM Preference: Off"
@@ -366,7 +361,7 @@ def handle_command(fireball_message):
         msg = f'{fireball_message.requestor_id}: I do not understand your message. Try again!'
         send_message_to = fireball_message.channel
     # Post message to Slack.
-    if get_pm_preference(fireball_message.requestor_id_only) == 0 and send_message_to == fireball_message.requestor_id_only:
+    if not get_pm_preference(fireball_message.requestor_id_only) and send_message_to == fireball_message.requestor_id_only:
         slack_client.api_call("chat.postEphemeral", channel=fireball_message.channel,
                               text=msg, user=fireball_message.requestor_id_only,
                               as_user=True, attachments=attach)
@@ -375,16 +370,16 @@ def handle_command(fireball_message):
                               text=msg, as_user=True, attachments=attach)
 
 
-def give_fireball(user_id, number_of_points):
-    """Add `number_of_points` to `user_id`'s total score.
-    """
-    add_user_points_received(user_id, number_of_points) 
+# def give_fireball(user_id, number_of_points):
+#     """Add `number_of_points` to `user_id`'s total score.
+#     """
+#     add_user_points_received(user_id, number_of_points) 
 
 
-def remove_points(user_id, number_of_points):
-    """
-    """
-    pass 
+# def remove_points(user_id, number_of_points):
+#     """
+#     """
+#     pass 
 
 
 def check_points(user_id, number_of_points):
