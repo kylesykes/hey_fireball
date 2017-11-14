@@ -36,13 +36,16 @@ MAX_NEG_POINTS_PER_DAY = 3
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 
-commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS)]
-commands_with_target = [POINTS, 'all']
+commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS),
+            NEGATIVE_POINTS, '-{}left'.format(NEGATIVE_POINTS)]
+commands_with_target = [POINTS, 'all', NEGATIVE_POINTS, 'allneg']
 
 user_list = slack_client.api_call("users.list")['members']
 user_name_lookup = {x['id'] : x['name'] for x in user_list}  # U1A1A1A1A : kyle.sykes
 
 def get_username(user_id):
+    """Return the user's username based on the user_id
+       else, return the user_id"""
     try:
         return user_name_lookup[user_id]
     except KeyError:
@@ -136,10 +139,12 @@ class FireballMessage():
             else:
                 idx = 1
             if self.parts[idx] == EMOJI:
-                return sum(part==EMOJI for part in self.parts[idx:])
+                return sum(part == EMOJI for part in self.parts[idx:])
+            elif NEG_POINTS == 'ALLOW' and self.parts[idx] == NEGATIVE_EMOJI:
+                return sum(part == NEGATIVE_EMOJI for part in self.parts[idx:])
             else:
                 try:
-                    return int(self.parts[idx])
+                    return int(self.parts[idx]) # May need changes for NEGATIVE_EMOJI?
                 except ValueError:
                     pass
         else:
@@ -149,9 +154,11 @@ class FireballMessage():
                 idx = 0
             if self.parts[idx] == EMOJI:
                 return sum(part == EMOJI for part in self.parts[idx:])
+            elif NEG_POINTS == 'ALLOW' and self.parts[idx] == NEGATIVE_EMOJI:
+                return sum(part == NEGATIVE_EMOJI for part in self.parts[idx:])
             else:
                 try:
-                    return int(self.parts[idx])
+                    return int(self.parts[idx]) # May need changes for NEGATIVE_EMOJI?
                 except ValueError:
                     pass
     '''
@@ -170,7 +177,7 @@ class FireballMessage():
 
 def set_storage(storage_type: str):
     """Set the storage mechanism.
-    
+
     Must be set before calling storge functions.
     """
     global _storage
@@ -184,18 +191,17 @@ def set_storage(storage_type: str):
     else:
         raise ValueError('Unknown storage type.')
 
-
+# Points used
 def get_user_points_remaining(user_id: str) -> int:
     """Return the number of points remaining for user today."""
     used_pts = _storage.get_user_points_used(user_id)
     return MAX_POINTS_PER_DAY - used_pts
-    
 
 def add_user_points_used(user_id: str, num: int):
     """Add `num` to user's total used points."""
     _storage.add_user_points_used(user_id, num)
 
-
+# Points remaining
 def get_user_points_received_total(user_id: str) -> int:
     """Return the number of points received by this user total."""
     return _storage.get_user_points_received_total(user_id)
