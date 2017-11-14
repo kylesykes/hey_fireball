@@ -347,7 +347,7 @@ def handle_command(fireball_message):
         points_rmn = get_user_points_remaining(fireball_message.requestor_id)
         msg = f"You have {points_rmn} {POINTS} remaining"
         send_message_to = fireball_message.requestor_id_only
-    
+
     elif fireball_message.command == 'setpm':
         set_pm_preference(fireball_message.requestor_id, fireball_message.setting)
         if fireball_message.setting:
@@ -361,10 +361,16 @@ def handle_command(fireball_message):
         msg = f'{fireball_message.requestor_id}: I do not understand your message. Try again!'
         send_message_to = fireball_message.channel
     # Post message to Slack.
-    if not get_pm_preference(fireball_message.requestor_id_only) and send_message_to == fireball_message.requestor_id_only:
+    if (send_message_to == fireball_message.requestor_id_only and
+            get_pm_preference(fireball_message.requestor_id) == 0):
         slack_client.api_call("chat.postEphemeral", channel=fireball_message.channel,
                               text=msg, user=fireball_message.requestor_id_only,
-                              as_user=True, attachments=attach)
+                              attachments=attach)
+    elif (send_message_to == fireball_message.target_id and
+          get_pm_preference(fireball_message.target_id) == 0):
+        slack_client.api_call("chat.postEphemeral", channel=fireball_message.channel,
+                              text=msg, user=fireball_message.target_id_only,
+                              attachments=attach)
     else:
         slack_client.api_call("chat.postMessage", channel=send_message_to,
                               text=msg, as_user=True, attachments=attach)
