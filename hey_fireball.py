@@ -20,7 +20,11 @@ BOT_ID = os.environ.get("BOT_ID")
 EMOJI = os.environ.get('EMOJI')
 POINTS = os.environ.get('POINTS')
 SELF_POINTS = os.environ.get('SELF_POINTS', "DISALLOW")
+NEG_POINTS = os.environ.get('NEG_POINTS', "ALLOW")
 
+if NEG_POINTS == "ALLOW":
+    NEGATIVE_EMOJI = os.environ.get('NEGATIVE_EMOJI')
+    NEGATIVE_POINTS = os.environ.get('NEGATIVE_POINTS')
 # constants
 AT_BOT = "<@" + BOT_ID + ">"
 
