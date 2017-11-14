@@ -29,6 +29,7 @@ if NEG_POINTS == "ALLOW":
 AT_BOT = "<@" + BOT_ID + ">"
 
 MAX_POINTS_PER_DAY = 5
+MAX_NEG_POINTS_PER_DAY = 3
 #EMOJI = ':fireball:'
 #POINTS = 'shots'
 
