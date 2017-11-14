@@ -144,8 +144,8 @@ class AzureTableStorage(Storage):
         if self._users is None:
             filter_query = "PartitionKey eq '{partition}'".format(partition=self.TOTAL_PARTITION)
             records = self._table_service.query_entities(self._table_name,
-                                                            filter=filter_query,
-                                                            select='RowKey')
+                                                         filter=filter_query,
+                                                         select='RowKey')
             self._users = {r['RowKey'] for r in records}
         return user_id in self._users
 
@@ -158,8 +158,8 @@ class AzureTableStorage(Storage):
     def _move_user_to_new_day(self, user_id: str):
         """Save the daily record and reset daily counts on Total partion."""
         total_record = self._table_service.get_entity(self._table_name,
-                                                        self.TOTAL_PARTITION, 
-                                                        user_id)
+                                                      self.TOTAL_PARTITION,
+                                                      user_id)
         del total_record['etag']
         self._save_daily_record(total_record)
         self._reset_daily_counts(total_record)
