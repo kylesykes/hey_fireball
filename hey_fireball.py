@@ -209,21 +209,29 @@ def set_storage(storage_type: str):
         raise ValueError('Unknown storage type.')
 
 # Points used
-def get_user_points_remaining(user_id: str) -> int:
+def get_user_points_remaining(user_id: str, kind: str) -> int:
     """Return the number of points remaining for user today."""
-    used_pts = _storage.get_user_points_used(user_id)
-    return MAX_POINTS_PER_DAY - used_pts
+    if kind == EMOJI:
+        used_pts = _storage.get_user_points_used(user_id)
+        return MAX_POINTS_PER_DAY - used_pts
+    if kind == NEGATIVE_EMOJI:
+        used_pts = _storage.get_user_neg_points_used(user_id)
+        return MAX_NEG_POINTS_PER_DAY - used_pts
 
 def get_user_neg_points_remaining(user_id: str) -> int:
     """Return the number of negative points remaining for user today"""
     used_pts = _storage.get_user_neg_points_used(user_id)
     return MAX_NEG_POINTS_PER_DAY - used_pts
 
+def add_user_neg_points_used(user_id: str, num: int):
+    """Add `num` to user's total used negative points."""
+    _storage.add_user_neg_points_used(user_id, num)
+
 def add_user_points_used(user_id: str, num: int):
     """Add `num` to user's total used points."""
     _storage.add_user_points_used(user_id, num)
 
-# Points remaining
+# Points received
 def get_user_points_received_total(user_id: str) -> int:
     """Return the number of points received by this user total."""
     return _storage.get_user_points_received_total(user_id)
@@ -233,6 +241,13 @@ def add_user_points_received(user_id: str, num: int):
     """Add `num` to user's total and today's received points."""
     _storage.add_user_points_received(user_id, num)
 
+def get_user_neg_points_received(user_id: str):
+    """Return the number of negative points received by this user."""
+    return _storage.get_user_neg_points_received(user_id)
+
+def add_user_neg_points_received(user_id: str, num: int):
+    """Add `num` to user's negative points received"""
+    _storage.add_user_neg_points_received(user_id, num)
 
 def get_users_and_scores() -> list:
     """Return list of (user, total points received) tuples."""
@@ -282,11 +297,11 @@ def extract_fireball_info(slack_msg):
     # Handle `all` command.
     if fireball.command == 'all':
         fireball.command = 'give'
-        fireball.count = get_user_points_remaining(fireball.requestor_id)
+        fireball.count = get_user_points_remaining(fireball.requestor_id, EMOJI)
 
     if fireball.command == 'allneg':
         fireball.command = 'giveneg'
-        fireball.count = get_user_neg_points_remaining(fireball.requestor_id)
+        fireball.count = get_user_points_remaining(fireball.requestor_id, NEGATIVE_EMOJI)
 
     # Determine if the `give` command was implied.
     if (fireball.command is None
@@ -312,21 +327,28 @@ def handle_command(fireball_message):
     """
     msg = ''
     attach = None
-    if fireball_message.command == 'give':
+    if fireball_message.command == 'give' or fireball_message.command == 'giveneg':
         # Check if self points are allowed.
         if SELF_POINTS == 'DISALLOW' and (fireball_message.requestor_id == fireball_message.target_id):
             msg = 'You cannot give points to yourself!'
             send_message_to = fireball_message.requestor_id_only
 
         # Determine if requestor has enough points to give.
-        elif check_points(fireball_message.requestor_id, fireball_message.count):
-            # Add points to target score.
-            add_user_points_received(fireball_message.target_id, fireball_message.count)
-            # Add points to requestor points used.
-            add_user_points_used(fireball_message.requestor_id, fireball_message.count)
-            msg = f'You received {fireball_message.count} {POINTS} from {fireball_message.requestor_name}'
-            send_message_to = fireball_message.target_id_only
-            
+        elif check_points(fireball_message.requestor_id, fireball_message.count, fireball_message.type):
+            if fireball_message.type == EMOJI:
+                # Add points to target score.
+                add_user_points_received(fireball_message.target_id, fireball_message.count)
+                # Add points to requestor points used.
+                add_user_points_used(fireball_message.requestor_id, fireball_message.count)
+                msg = f'You received {fireball_message.count} {POINTS} from {fireball_message.requestor_name}!'
+                send_message_to = fireball_message.target_id_only
+            elif fireball_message.type == NEGATIVE_EMOJI:
+                # Add points to targets negative score.
+                add_user_neg_points_received(fireball_message.target_id, fireball_message.count)
+                # Add points to requestor negative points used.
+                add_user_neg_points_used(fireball_message.requestor_id, fireball_message.count)
+                msg = f'You received {fireball_message.count} negative {POINTS} from {fireball_message.requestor_name}!'
+                send_message_to = fireball_message.target_id_only
         else:
             # Requestor lacks enough points to give.
             msg = f'You do not have enough {POINTS}!'
@@ -359,7 +381,7 @@ def handle_command(fireball_message):
 
     elif fireball_message.command == f'{POINTS}left':
         # Return requestor's points remaining.
-        points_rmn = get_user_points_remaining(fireball_message.requestor_id)
+        points_rmn = get_user_points_remaining(fireball_message.requestor_id, EMOJI)
         msg = f"You have {points_rmn} {POINTS} remaining"
         send_message_to = fireball_message.requestor_id_only
 
@@ -385,10 +407,10 @@ def remove_points(user_id, number_of_points):
     pass 
 
 
-def check_points(user_id, number_of_points):
+def check_points(user_id, number_of_points, kind):
     """Check to see if user_id has enough points remaining today.
     """
-    return get_user_points_remaining(user_id) >= number_of_points
+    return get_user_points_remaining(user_id, kind) >= number_of_points
 
 '''
 fireball color palette
