@@ -58,15 +58,6 @@ class Storage():
         """Return list of tuples (user_id, points_received_total)."""
         pass
 
-    ### PM Preferences
-    def get_pm_preference(self, user_id: str):
-        """Return user's PM Preference"""
-        pass
-
-    def set_pm_preference(self, user_id: str, pref: int):
-        """Set user's PM Preference"""
-        pass
-
 class AzureTableStorage(Storage):
     """Implementation of `Storage` that uses Azure Table Service.
     
@@ -107,7 +98,6 @@ class AzureTableStorage(Storage):
     POINTS_RECEIVED_TODAY = 'POINTS_RECEIVED_TODAY'
     NEGATIVE_POINTS_USED_TODAY = 'NEGATIVE_POINTS_USED_TODAY'
     USERS_LIST = 'USERS_LIST'
-    PM_PREFERENCE = 'PM_PREFERENCE'
     TOTAL_PARTITION = 'TOTAL'
 
     def __init__(self):
@@ -130,15 +120,14 @@ class AzureTableStorage(Storage):
     def _create_user_entry(self, user_id: str):
         """Create new user entry and init fields."""
         self._table_service.insert_entity(self._table_name,
-                                          {'PartitionKey':self.TOTAL_PARTITION,
-                                           'RowKey': user_id,
-                                           self.POINTS_RECEIVED_TOTAL: 0,
-                                           self.POINTS_USED_TOTAL: 0,
-                                           self.NEGATIVE_POINTS_USED_TOTAL: 0,
-                                           self.POINTS_RECEIVED_TODAY: 0,
-                                           self.POINTS_USED_TODAY: 0,
-                                           self.NEGATIVE_POINTS_USED_TODAY: 0,
-                                           self.PM_PREFERENCE: 1})
+                                            {'PartitionKey':self.TOTAL_PARTITION,
+                                            'RowKey': user_id,
+                                            self.POINTS_RECEIVED_TOTAL: 0,
+                                            self.POINTS_USED_TOTAL: 0,
+                                            self.NEGATIVE_POINTS_USED_TOTAL: 0,
+                                            self.POINTS_RECEIVED_TODAY: 0,
+                                            self.POINTS_USED_TODAY: 0,
+                                            self.NEGATIVE_POINTS_USED_TODAY: 0})
         self._users.add(user_id)
 
     def _user_exists(self, user_id: str) -> bool:
@@ -299,25 +288,6 @@ class AzureTableStorage(Storage):
                                                     select=select_query)
         return [(r['RowKey'], r[self.POINTS_RECEIVED_TOTAL]) for r in records]
 
-    def get_pm_preference(self, user_id: str) -> int:
-        """Return user's PM Preference"""
-        self._check_user(user_id)
-        record = self._table_service.get_entity(self._table_name,
-                                                partition_key=self.TOTAL_PARTITION,
-                                                row_key=user_id,
-                                                select=self.PM_PREFERENCE)
-        return record[self.PM_PREFERENCE]
-
-    def set_pm_preference(self, user_id: str, pref: int):
-        """Set user's PM Preference"""
-        self._check_user(user_id)
-        record = self._table_service.get_entity(self._table_name,
-                                                partition_key=self.TOTAL_PARTITION,
-                                                row_key=user_id,
-                                                select=self.PM_PREFERENCE)
-        record[self.PM_PREFERENCE] = pref
-        self._table_service.merge_entity(self._table_name, record)
-
     @staticmethod
     def _get_today() -> datetime.date:
         """Return today's date as a string YYYY-MM-DD."""
@@ -353,7 +323,6 @@ class AzureTableStorage(Storage):
 #     POINTS_USED = 'POINTS_USED'
 #     POINTS_RECEIVED = 'POINTS_RECEIVED'
 #     USERS_LIST_KEY = 'USERS_LIST'
-#     PM_PREFERENCE = 'PM_PREFERENCE'
 
 #     def __init__(self):
 #         super().__init__()
@@ -366,7 +335,7 @@ class AzureTableStorage(Storage):
         
     # def _create_user_entry(self, user_id: str):
     #     """Create new user entry and init fields."""
-    #     self._redis.hmset(user_id, {self.POINTS_USED:0, self.POINTS_RECEIVED:0, self.PM_PREFERENCE:1})
+    #     self._redis.hmset(user_id, {self.POINTS_USED:0, self.POINTS_RECEIVED:0})
     #     self._redis.sadd(self.USERS_LIST_KEY, user_id)
 
     # def user_exists(self, user_id: str):
@@ -394,14 +363,6 @@ class AzureTableStorage(Storage):
     #     users = self._redis.smembers(self.USERS_LIST_KEY)
     #     return [(user, self.get_user_points_received(user)) for user in users]
 
-    # def get_pm_preference(self, user_id: str) -> int:
-    #     """Return user's PM Preference"""
-    #     return int(self._redis.hget(user_id, self.PM_PREFERENCE))
-
-    # def set_pm_preference(self, user_id: str, pref: int):
-    #     """Set user's PM Preference"""
-    #     self._redis.hmset(user_id, self.PM_PREFERENCE:pref)
-
 
 class InMemoryStorage(Storage):
     """Implementation of `Storage` that uses a dict in memory.
@@ -409,7 +370,6 @@ class InMemoryStorage(Storage):
 
     POINTS_USED = 'POINTS_USED'
     POINTS_RECEIVED = 'POINTS_RECEIVED'
-    PM_PREFERENCE = 'PM_PREFERENCE'
 
     def __init__(self):
         super().__init__()
@@ -425,8 +385,7 @@ class InMemoryStorage(Storage):
         """Create new user entry and init fields."""
         self._data[user_id] = {
             self.POINTS_USED : 0,
-            self.POINTS_RECEIVED : 0,
-            self.PM_PREFERENCE : 1
+            self.POINTS_RECEIVED : 0
         }
 
     def user_exists(self, user_id: str):
@@ -458,14 +417,3 @@ class InMemoryStorage(Storage):
     def get_users_and_scores(self):
         """Return list of tuples (user_id, points_received)."""
         return [(k, v[self.POINTS_RECEIVED]) for k,v in self._data.items()]
-
-    def get_pm_preference(self, user_id: str):
-        """Return user's PM Preference"""
-        self.check_user(user_id=user_id)
-        return self._data[user_id].get(self.PM_PREFERENCE)
-
-    def set_pm_preference(self, user_id: str, pref: int):
-        """Set user's PM Preference"""
-        self.check_user(user_id=user_id)
-        user_data = self._data.setdefault(user_id, {})
-        user_data[self.PM_PREFERENCE] = pref
