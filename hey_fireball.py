@@ -80,7 +80,8 @@ class FireballMessage():
                 self.target_name = self.target_id
             self.command = self._extract_command()
             self.count = self._extract_count()
-            self.setting = self._extract_setting()
+            self.setting = self._extract_setting() # Find on/off or assume toggle
+            self.ts = msg['ts'] # Store the thread_ts
 
     def __str__(self):
         return str(vars(self))
@@ -154,18 +155,21 @@ class FireballMessage():
     def _extract_setting(self):
         if self.bot_is_first:
             idx = 2
+            curPref = get_pm_preference(self.requestor_id)
             try:
                 self.parts[idx]
             except IndexError:
                 # Act as a toggle
-                if get_pm_preference(self.requestor_id):
+                if curPref:
                     return 0
                 else:
                     return 1
-            if self.parts[idx].lower() == 'on':
+            if self.parts[idx].lower() == 'on' and not curPref:
                 return 1
-            elif self.parts[idx].lower() == 'off':
+            elif self.parts[idx].lower() == 'off' and curPref:
                 return 0
+            else:
+                pass
 
     '''
     # Use the following to catch and handle missing methods/properties as we want
@@ -351,11 +355,10 @@ def handle_command(fireball_message):
     elif fireball_message.command == 'setpm':
         set_pm_preference(fireball_message.requestor_id, fireball_message.setting)
         if fireball_message.setting:
-            msg = "PM Preference: On"
+            msg = "Receive PM's: On"
         else:
-            msg = "PM Preference: Off"
+            msg = "Receive PM's: Off\n*Warning:* _Future messages that were sent only to you will look like this. This type of response does not typically persist between slack sessions._"
         send_message_to = fireball_message.requestor_id_only
-
     else:
         # Message was not valid, so
         msg = f'{fireball_message.requestor_id}: I do not understand your message. Try again!'
@@ -371,6 +374,11 @@ def handle_command(fireball_message):
         slack_client.api_call("chat.postEphemeral", channel=fireball_message.channel,
                               text=msg, user=fireball_message.target_id_only,
                               attachments=attach)
+    # elif (fireball_message.command == 'fullboard' or
+    #         fireball_message.command == 'leaderboard'):
+    #     slack_client.api_call("chat.postMessage", channel=send_message_to,
+    #                           text=msg, as_user=True, attachments=attach,
+    #                           thread_ts=fireball_message.ts)
     else:
         slack_client.api_call("chat.postMessage", channel=send_message_to,
                               text=msg, as_user=True, attachments=attach)
