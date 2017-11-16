@@ -156,10 +156,8 @@ class FireballMessage():
         if self.bot_is_first:
             idx = 2
             curPref = get_pm_preference(self.requestor_id)
-            try:
-                self.parts[idx]
-            except IndexError:
-                # Act as a toggle
+            if len(self.parts) < 3:
+                #Act as a toggle
                 if curPref:
                     return 0
                 else:
