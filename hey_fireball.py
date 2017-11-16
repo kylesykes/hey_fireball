@@ -19,7 +19,6 @@ STORAGE_TYPE = os.environ.get("STORAGE_TYPE", "inmemory")
 BOT_ID = os.environ.get("BOT_ID")
 EMOJI = os.environ.get('EMOJI')
 POINTS = os.environ.get('POINTS')
-SELF_POINTS = os.environ.get('SELF_POINTS', "DISALLOW")
 
 # constants
 AT_BOT = "<@" + BOT_ID + ">"
@@ -81,6 +80,8 @@ class FireballMessage():
             self.command = self._extract_command()
             self.count = self._extract_count()
             self.setting = self._extract_setting()
+            self.setting = self._extract_setting() # Find on/off or assume toggle
+            self.ts = msg['ts'] # Store the thread_ts
 
     def __str__(self):
         return str(vars(self))
@@ -154,18 +155,24 @@ class FireballMessage():
     def _extract_setting(self):
         if self.bot_is_first:
             idx = 2
+            curPref = get_pm_preference(self.requestor_id)
             try:
                 self.parts[idx]
             except IndexError:
                 # Act as a toggle
                 if get_pm_preference(self.requestor_id):
+                if curPref:
                     return 0
                 else:
                     return 1
             if self.parts[idx].lower() == 'on':
+            if self.parts[idx].lower() == 'on' and not curPref:
                 return 1
             elif self.parts[idx].lower() == 'off':
+            elif self.parts[idx].lower() == 'off' and curPref:
                 return 0
+            else:
+                pass
 
     '''
     # Use the following to catch and handle missing methods/properties as we want
@@ -352,8 +359,10 @@ def handle_command(fireball_message):
         set_pm_preference(fireball_message.requestor_id, fireball_message.setting)
         if fireball_message.setting:
             msg = "PM Preference: On"
+            msg = "Receive PM's: On"
         else:
             msg = "PM Preference: Off"
+            msg = "Receive PM's: Off\n*Warning:* _Future messages that were sent only to you will look like this. This type of response does not typically persist between slack sessions._"
         send_message_to = fireball_message.requestor_id_only
 
     else:
