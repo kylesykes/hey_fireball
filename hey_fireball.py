@@ -80,6 +80,7 @@ class FireballMessage():
                 self.target_name = self.target_id
             self.command = self._extract_command()
             self.count = self._extract_count()
+            self.ts = msg['ts']
 
     def __str__(self):
         return str(vars(self))
@@ -328,14 +329,14 @@ def handle_command(fireball_message):
         msg = f'{fireball_message.requestor_id}: I do not understand your message. Try again!'
         send_message_to = fireball_message.channel
     if (fireball_message.command == 'fullboard' or
-         fireball_message.command == 'leaderboard'):
+            fireball_message.command == 'leaderboard'):
         slack_client.api_call("chat.postMessage", channel=send_message_to,
-                          text=msg, as_user=True, attachments=attach,
-                          thread_ts=fireball_message.ts)
+                              text=msg, as_user=True, attachments=attach,
+                              thread_ts=fireball_message.ts)
     else:
         # Post message to Slack.
-        slack_client.api_call("chat.postMessage", channel=send_message_to, 
-                          text=msg, as_user=True, attachments=attach)
+        slack_client.api_call("chat.postMessage", channel=send_message_to,
+                              text=msg, as_user=True, attachments=attach)
 
 
 def give_fireball(user_id, number_of_points):
