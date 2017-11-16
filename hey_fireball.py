@@ -372,11 +372,6 @@ def handle_command(fireball_message):
         slack_client.api_call("chat.postEphemeral", channel=fireball_message.channel,
                               text=msg, user=fireball_message.target_id_only,
                               attachments=attach)
-    # elif (fireball_message.command == 'fullboard' or
-    #         fireball_message.command == 'leaderboard'):
-    #     slack_client.api_call("chat.postMessage", channel=send_message_to,
-    #                           text=msg, as_user=True, attachments=attach,
-    #                           thread_ts=fireball_message.ts)
     else:
         slack_client.api_call("chat.postMessage", channel=send_message_to,
                               text=msg, as_user=True, attachments=attach)
