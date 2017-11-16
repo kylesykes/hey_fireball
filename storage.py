@@ -416,4 +416,4 @@ class InMemoryStorage(Storage):
 
     def get_users_and_scores(self):
         """Return list of tuples (user_id, points_received)."""
-        return [(k, v[self.POINTS_RECEIVED]) for k,v in self._data.items()]
+        return [(k, v[self.POINTS_RECEIVED]) for k, v in self._data.items()]
