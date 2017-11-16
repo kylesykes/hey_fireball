@@ -327,8 +327,8 @@ def handle_command(fireball_message):
         # Message was not valid, so 
         msg = f'{fireball_message.requestor_id}: I do not understand your message. Try again!'
         send_message_to = fireball_message.channel
-    if fireball_message.command == 'fullboard' or
-         fireball_message.command == 'leaderboard':
+    if (fireball_message.command == 'fullboard' or
+         fireball_message.command == 'leaderboard'):
         slack_client.api_call("chat.postMessage", channel=send_message_to,
                           text=msg, as_user=True, attachments=attach,
                           thread_ts=fireball_message.ts)
