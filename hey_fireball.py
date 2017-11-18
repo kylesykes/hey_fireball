@@ -101,51 +101,18 @@ class FireballMessage():
  
     def _extract_command(self):
         """Find the command in the message."""
-        #TODO: Clean up this gnarly logic.  Stop hardcoding indices
-        if self.bot_is_first:
-            if self.target_id:
-                cmds = commands_with_target
-                idx = 2
-            else:
-                cmds = commands
-                idx = 1
-            # TODO: Check length of parts or error handler here.
+        idx = sum([bool(self.bot_is_first), bool(self.target_id)])
+        if len(self.parts) > idx:
+            cmds = commands_with_target if self.target_id else commands
             if self.parts[idx].lower() in cmds:
-                return self.parts[idx].lower()
-            return None
-        else:
-            if self.target_id:
-                cmds = commands_with_target
-                idx = 1
-            else:
-                cmds = commands
-                idx = 0
-            # TODO: Check length of parts or error handler here.
-            if self.parts[idx].lower() in cmds:
-                return self.parts[idx].lower()
-            return None
+                 return self.parts[idx].lower()
 
     def _extract_count(self):
-        #TODO: Clean up this gnarly logic.  Stop hardcoding indices
-        if self.bot_is_first:
-            if self.target_id:
-                idx = 2
-            else:
-                idx = 1
+        """Extract the count of EMOJI in the message."""
+        idx = sum([bool(self.bot_is_first), bool(self.target_id)])
+        if len(self.parts) > idx:
             if self.parts[idx] == EMOJI:
                 return sum(part==EMOJI for part in self.parts[idx:])
-            else:
-                try:
-                    return int(self.parts[idx])
-                except ValueError:
-                    pass
-        else:
-            if self.target_id:
-                idx = 1
-            else:
-                idx = 0
-            if self.parts[idx] == EMOJI:
-                return sum(part == EMOJI for part in self.parts[idx:])
             else:
                 try:
                     return int(self.parts[idx])
