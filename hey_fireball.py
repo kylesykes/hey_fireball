@@ -31,7 +31,7 @@ MAX_POINTS_PER_DAY = 5
 # instantiate Slack & Twilio clients
 slack_client = SlackClient(os.environ.get('SLACK_BOT_TOKEN'))
 
-commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS)]
+commands = ['leaderboard', 'fullboard', POINTS, '{}left'.format(POINTS), 'setpm']
 commands_with_target = [POINTS, 'all']
 
 user_list = slack_client.api_call("users.list")['members']
@@ -80,6 +80,8 @@ class FireballMessage():
                 self.target_name = self.target_id
             self.command = self._extract_command()
             self.count = self._extract_count()
+            self.setting = self._extract_setting() # Find on/off or assume toggle
+            self.ts = msg['ts'] # Store the thread_ts
 
     def __str__(self):
         return str(vars(self))
@@ -149,6 +151,24 @@ class FireballMessage():
                     return int(self.parts[idx])
                 except ValueError:
                     pass
+
+    def _extract_setting(self):
+        if self.bot_is_first:
+            idx = 2
+            curPref = get_pm_preference(self.requestor_id)
+            if len(self.parts) < 3:
+                #Act as a toggle
+                if curPref:
+                    return 0
+                else:
+                    return 1
+            if self.parts[idx].lower() == 'on' and not curPref:
+                return 1
+            elif self.parts[idx].lower() == 'off' and curPref:
+                return 0
+            else:
+                pass
+
     '''
     # Use the following to catch and handle missing methods/properties as we want
     def __getattr__(self, name):
@@ -204,6 +224,14 @@ def add_user_points_received(user_id: str, num: int):
 def get_users_and_scores() -> list:
     """Return list of (user, total points received) tuples."""
     return _storage.get_users_and_scores_total()
+
+def get_pm_preference(user_id: str) -> int:
+    """Return user's PM Preference"""
+    return _storage.get_pm_preference(user_id)
+
+def set_pm_preference(user_id: str, pref: int):
+    """Set user's PM Preference"""
+    _storage.set_pm_preference(user_id, pref)
 
 
 #####################
@@ -277,7 +305,6 @@ def handle_command(fireball_message):
         if SELF_POINTS == 'DISALLOW' and (fireball_message.requestor_id == fireball_message.target_id):
             msg = 'You cannot give points to yourself!'
             send_message_to = fireball_message.requestor_id_only
-
         # Determine if requestor has enough points to give.
         elif check_points(fireball_message.requestor_id, fireball_message.count):
             # Add points to target score.
@@ -286,7 +313,7 @@ def handle_command(fireball_message):
             add_user_points_used(fireball_message.requestor_id, fireball_message.count)
             msg = f'You received {fireball_message.count} {POINTS} from {fireball_message.requestor_name}'
             send_message_to = fireball_message.target_id_only
-            
+
         else:
             # Requestor lacks enough points to give.
             msg = f'You do not have enough {POINTS}!'
@@ -323,26 +350,43 @@ def handle_command(fireball_message):
         msg = f"You have {points_rmn} {POINTS} remaining"
         send_message_to = fireball_message.requestor_id_only
 
+    elif fireball_message.command == 'setpm':
+        set_pm_preference(fireball_message.requestor_id, fireball_message.setting)
+        if fireball_message.setting:
+            msg = "Receive PM's: On"
+        else:
+            msg = "Receive PM's: Off\n*Warning:* _Future messages that were sent only to you will look like this. This type of response does not typically persist between slack sessions._"
+        send_message_to = fireball_message.requestor_id_only
     else:
-        # Message was not valid, so 
+        # Message was not valid, so
         msg = f'{fireball_message.requestor_id}: I do not understand your message. Try again!'
         send_message_to = fireball_message.channel
-    
     # Post message to Slack.
-    slack_client.api_call("chat.postMessage", channel=send_message_to, 
-                          text=msg, as_user=True, attachments=attach)
+    if (send_message_to == fireball_message.requestor_id_only and
+            get_pm_preference(fireball_message.requestor_id) == 0):
+        slack_client.api_call("chat.postEphemeral", channel=fireball_message.channel,
+                              text=msg, user=fireball_message.requestor_id_only,
+                              attachments=attach)
+    elif (send_message_to == fireball_message.target_id and
+          get_pm_preference(fireball_message.target_id) == 0):
+        slack_client.api_call("chat.postEphemeral", channel=fireball_message.channel,
+                              text=msg, user=fireball_message.target_id_only,
+                              attachments=attach)
+    else:
+        slack_client.api_call("chat.postMessage", channel=send_message_to,
+                              text=msg, as_user=True, attachments=attach)
 
 
-def give_fireball(user_id, number_of_points):
-    """Add `number_of_points` to `user_id`'s total score.
-    """
-    add_user_points_received(user_id, number_of_points) 
+# def give_fireball(user_id, number_of_points):
+#     """Add `number_of_points` to `user_id`'s total score.
+#     """
+#     add_user_points_received(user_id, number_of_points) 
 
 
-def remove_points(user_id, number_of_points):
-    """
-    """
-    pass 
+# def remove_points(user_id, number_of_points):
+#     """
+#     """
+#     pass 
 
 
 def check_points(user_id, number_of_points):
