@@ -106,3 +106,4 @@ ENV/
 
 # custom
 *.ignoreme
+.DS_Store
