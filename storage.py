@@ -15,6 +15,7 @@ flat-file, etc.)
 import os
 import datetime
 
+from typing import List
 
 #####################
 # API
@@ -112,11 +113,11 @@ class AzureTableStorage(Storage):
 
     def __init__(self):
         super().__init__()
-        # Check is Redis library is installed.
+        # Check is azure library is installed.
         try:
             import azure.storage.table
         except ImportError:
-            raise Exception('azure storage table package not installed!')
+            raise Exception('azure table storage package not installed!')
         self._users = None
         self._account_name = os.environ.get("ACCOUNT_NAME")
         self._account_key = os.environ.get("ACCOUNT_KEY")
@@ -343,129 +344,136 @@ class AzureTableStorage(Storage):
         """
         return ts.date() == AzureTableStorage._get_today().date()
 
-# class RedisStorage(Storage):
-#     """Implementation of `Storage` that uses Redis.
-    
-#     Redis server's URL should be in env var `REDIS_URL`.
-
-#     key: username
-#     value: hash(POINTS_USED, POINTS_RECEIVED)
-#     """
-
-#     POINTS_USED = 'POINTS_USED'
-#     POINTS_RECEIVED = 'POINTS_RECEIVED'
-#     USERS_LIST_KEY = 'USERS_LIST'
-
-#     def __init__(self):
-#         super().__init__()
-#         # Check is Redis library is installed.
-#         try:
-#             import redis
-#         except ImportError:
-#             raise Exception('Redis package not installed!')
-#         self._redis = redis.from_url(os.environ.get("REDIS_URL"))
-        
-    # def _create_user_entry(self, user_id: str):
-    #     """Create new user entry and init fields."""
-    #     self._redis.hmset(user_id, {self.POINTS_USED:0, self.POINTS_RECEIVED:0, self.PM_PREFERENCE:1})
-    #     self._redis.sadd(self.USERS_LIST_KEY, user_id)
-
-    # def user_exists(self, user_id: str):
-    #     """Return True if user_id is in storage."""
-    #     return self._redis.exists(user_id)
-
-    # def get_user_points_used(self, user_id: str):
-    #     """Return number of points used or 0."""
-    #     return int(self._redis.hget(user_id, self.POINTS_USED))
-
-    # def add_user_points_used(self, user_id: str, num: int):
-    #     """Add `num` to user's total used points."""
-    #     self._redis.hincrby(user_id, self.POINTS_USED, num)
-
-    # def get_user_points_received(self, user_id: str):
-    #     """Return number of points received or 0."""
-    #     return int(self._redis.hget(user_id, self.POINTS_RECEIVED))
-
-    # def add_user_points_received(self, user_id: str, num: int):
-    #     """Add `num` to user's total received points."""
-    #     self._redis.hincrby(user_id, self.POINTS_RECEIVED, num)
-
-    # def get_users_and_scores(self):
-    #     """Return list of tuples (user_id, points_received)."""
-    #     users = self._redis.smembers(self.USERS_LIST_KEY)
-    #     return [(user, self.get_user_points_received(user)) for user in users]
-
-    # def get_pm_preference(self, user_id: str) -> int:
-    #     """Return integer of user's PM preference. 0 = no pm's. 1 = all pm's"""
-    #     return int(self._redis.hget(user_id, self.PM_PREFERENCE))
-
-    # def set_pm_preference(self, user_id: str, pref: int):
-    #     """Set's the user's PM Preference"""
-    #     self._redis.hmset(user_id, {self.PM_PREFERENCE:pref})
 
 class InMemoryStorage(Storage):
     """Implementation of `Storage` that uses a dict in memory.
     """
 
-    POINTS_USED = 'POINTS_USED'
-    POINTS_RECEIVED = 'POINTS_RECEIVED'
+    POINTS_USED_TOTAL = 'POINTS_USED_TOTAL'
+    POINTS_RECEIVED_TOTAL = 'POINTS_RECEIVED_TOTAL'
+    NEGATIVE_POINTS_USED_TOTAL = 'NEGATIVE_POINTS_USED_TOTAL'
+    POINTS_USED_TODAY = 'POINTS_USED_TODAY'
+    POINTS_RECEIVED_TODAY = 'POINTS_RECEIVED_TODAY'
+    NEGATIVE_POINTS_USED_TODAY = 'NEGATIVE_POINTS_USED_TODAY'
     PM_PREFERENCE = 'PM_PREFERENCE'
+    LAST_MODIFIED = 'LAST_MODIFIED'
 
     def __init__(self):
         super().__init__()
-        # Check is Redis library is installed.
         self._data = dict()
 
-    def check_user(self, user_id: str):
-        """Check if user exists in storage and create a new entry if not."""
-        if not self.user_exists(user_id):
-            self.create_user_entry(user_id)
+    def _check_date(self, date: datetime.date) -> bool:
+        """Compare date to current date and return True is match."""
+        # This is based on server date, not user date.
+        return date == self._get_today()
 
-    def create_user_entry(self, user_id: str):
+    @staticmethod
+    def _get_today() -> datetime.date:
+        return datetime.datetime.today().date()
+
+    ### Users
+    def _check_user(self, user_id: str):
+        """Check if user exists in storage and create a new entry if not."""
+        if not self._user_exists(user_id):
+            self._create_user_entry(user_id)
+
+    def _create_user_entry(self, user_id: str):
         """Create new user entry and init fields."""
         self._data[user_id] = {
-            self.POINTS_USED : 0,
-            self.POINTS_RECEIVED : 0,
-            self.PM_PREFERENCE: 1
+            self.POINTS_USED_TOTAL : 0,
+            self.POINTS_USED_TODAY : 0,
+            self.POINTS_RECEIVED_TOTAL : 0,
+            self.POINTS_RECEIVED_TODAY : 0,
+            self.NEGATIVE_POINTS_USED_TOTAL : 0,
+            self.NEGATIVE_POINTS_USED_TODAY : 0,
+            self.PM_PREFERENCE: 1,
+            self.LAST_MODIFIED: self._get_today()
         }
 
-    def user_exists(self, user_id: str):
+    def _user_exists(self, user_id: str):
         """Return True if user_id is in storage."""
         return user_id in self._data
 
+    def get_users(self) -> List[str]:
+        """Return list of user ids."""
+        return list(self._data.keys())
+
+    # Manipulate storage data structure
+    def _reset_user_counts(self, user_id: str):
+        """Reset daily counts for user."""
+        self._data[user_id][self.POINTS_RECEIVED_TODAY] = 0      
+        self._data[user_id][self.POINTS_USED_TODAY] = 0
+        self._data[user_id][self.NEGATIVE_POINTS_USED_TODAY] = 0
+        self._data[user_id][self.LAST_MODIFIED] = self._get_today()
+    
+    def _get_user_field(self, user_id: str, field: str) -> int:
+        """Return value of `field` for `user_id`."""
+        if not self._check_date(self._data[user_id][self.LAST_MODIFIED]):
+            # This record is stale.
+            self._reset_user_counts(user_id)
+        return self._data[user_id][field]
+
+    def _set_user_field(self, user_id: str, field: str, value: int):
+        """Set `field` to `value` for `user_id`."""
+        if not self._check_date(self._data[user_id][self.LAST_MODIFIED]):
+            # This record is stale.
+            self._reset_user_counts(user_id)
+        self._data[user_id][field] = value
+
+    def _add_to_user_field(self, user_id: str, field: str, value: int):
+        """Add `value` to `field` for `user_id`."""
+        if not self._check_date(self._data[user_id][self.LAST_MODIFIED]):
+            # This record is stale.
+            self._reset_user_counts(user_id)
+        self._data[user_id][field] += value
+
+    ### Points used
+    def get_user_points_used_total(self, user_id: str):
+        """Return total number of points used or 0."""
+        self._check_user(user_id=user_id)
+        return self._get_user_field(user_id, self.POINTS_USED_TOTAL)
+
     def get_user_points_used(self, user_id: str):
         """Return number of points used or 0."""
-        self.check_user(user_id=user_id)
-        return self._data[user_id].get(self.POINTS_USED, 0)
+        self._check_user(user_id=user_id)
+        return self._get_user_field(user_id, self.POINTS_USED_TODAY)
 
     def add_user_points_used(self, user_id: str, num: int):
-        """Add `num` to user's total used points."""
-        self.check_user(user_id=user_id)
-        user_data = self._data.setdefault(user_id, {})
-        user_data[self.POINTS_USED] = user_data.get(self.POINTS_USED, 0) + num
+        """Add `num` to user's total and daily used points."""
+        self._check_user(user_id=user_id)
+        self._add_to_user_field(user_id, self.POINTS_USED_TOTAL, num)
+        self._add_to_user_field(user_id, self.POINTS_USED_TODAY, num)
+
+    ### Points received
+    def get_user_points_received_total(self, user_id: str):
+        """Return total number of points received or 0."""
+        self._check_user(user_id=user_id)
+        return self._get_user_field(user_id, self.POINTS_RECEIVED_TOTAL)
 
     def get_user_points_received(self, user_id: str):
         """Return number of points received or 0."""
-        self.check_user(user_id=user_id)
-        return self._data[user_id].get(self.POINTS_RECEIVED, 0)
+        self._check_user(user_id=user_id)
+        return self._get_user_field(user_id, self.POINTS_RECEIVED_TODAY)
 
     def add_user_points_received(self, user_id: str, num: int):
         """Add `num` to user's total received points."""
-        self.check_user(user_id=user_id)
-        user_data = self._data.setdefault(user_id, {})
-        user_data[self.POINTS_RECEIVED] = user_data.get(self.POINTS_RECEIVED, 0) + num
+        self._check_user(user_id=user_id)
+        self._add_to_user_field(user_id, self.POINTS_RECEIVED_TOTAL, num)
+        self._add_to_user_field(user_id, self.POINTS_RECEIVED_TODAY, num)
 
-    def get_users_and_scores(self):
+    def get_users_and_scores_total(self):
         """Return list of tuples (user_id, points_received)."""
-        return [(k, v[self.POINTS_RECEIVED]) for k,v in self._data.items()]
+        return [(user, self._get_user_field(user, self.POINTS_RECEIVED_TOTAL)) 
+                for user in self.get_users()]
 
+    ### PM Preferences
     def get_pm_preference(self, user_id: str) -> int:
         """Return user's PM Preference"""
-        self.check_user(user_id=user_id)
-        return self._data[user_id].get(self.PM_PREFERENCE)
+        self._check_user(user_id=user_id)
+        return self._get_user_field(user_id, self.PM_PREFERENCE)
 
     def set_pm_preference(self, user_id: str, pref: int):
         """Set user's PM Preference"""
-        self.check_user(user_id=user_id)
-        user_data = self._data.setdefault(user_id, {})
-        user_data[self.PM_PREFERENCE] = pref
+        self._check_user(user_id=user_id)
+        self._set_user_field(user_id, self.PM_PREFERENCE, pref)
+        
