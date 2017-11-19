@@ -56,7 +56,7 @@ class FireballMessage():
         self.requestor_id = f'<@{self.requestor_id_only}>'
         try:
             self.requestor_name = user_name_lookup[self.requestor_id_only]
-        except:
+        except KeyError:
             self.requestor_name = self.requestor_id
         self.channel = msg['channel']
         self.text = msg['text']
@@ -73,11 +73,11 @@ class FireballMessage():
             self.target_id = self._extract_valid_user(token)
             if self.target_id is not None:
                 self.target_id_only = self.target_id[2:-1]
-            # Try to get target username.
-            try:
-                self.target_name = user_name_lookup[self.target_id_only]
-            except:
-                self.target_name = self.target_id
+                # Try to get target username.
+                try:
+                    self.target_name = user_name_lookup[self.target_id_only]
+                except KeyError:
+                    self.target_name = self.target_id
             self.command = self._extract_command()
             self.count = self._extract_count()
             self.setting = self._extract_setting() # Find on/off or assume toggle
@@ -159,8 +159,6 @@ def set_storage(storage_type: str):
     storage_type = storage_type.lower()
     if storage_type == 'inmemory':
         _storage = storage.InMemoryStorage()
-    elif storage_type == 'redis':
-        _storage = storage.RedisStorage()
     elif storage_type == 'azuretable':
         _storage = storage.AzureTableStorage()
     else:
@@ -172,21 +170,17 @@ def get_user_points_remaining(user_id: str) -> int:
     used_pts = _storage.get_user_points_used(user_id)
     return MAX_POINTS_PER_DAY - used_pts
     
-
 def add_user_points_used(user_id: str, num: int):
     """Add `num` to user's total used points."""
     _storage.add_user_points_used(user_id, num)
-
 
 def get_user_points_received_total(user_id: str) -> int:
     """Return the number of points received by this user total."""
     return _storage.get_user_points_received_total(user_id)
 
-
 def add_user_points_received(user_id: str, num: int):
     """Add `num` to user's total and today's received points."""
     _storage.add_user_points_received(user_id, num)
-
 
 def get_users_and_scores() -> list:
     """Return list of (user, total points received) tuples."""
