@@ -303,13 +303,17 @@ class AzureTableStorage(Storage):
     def set_pm_preference(self, user_id: str, pref: int):
         """Set the user's PM Preference"""
         self._check_user(user_id)
-        select_query = "PartitionKey,RowKey,Timestamp,{}".format(self.PM_PREFERENCE)
-        record = self._table_service.get_entity(self._table_name,
-                                                partition_key=self.TOTAL_PARTITION,
-                                                row_key=user_id,
-                                                select=select_query)
-        # del record['etag'] # Need to read up on this
+        #select_query = "PartitionKey,RowKey,Timestamp,{}".format(self.PM_PREFERENCE)
+        #record = self._table_service.get_entity(self._table_name,
+        #                                        partition_key=self.TOTAL_PARTITION,
+        #                                        row_key=user_id,
+        #                                        select=select_query)
+        #del record['etag'] # Need to read up on this
+        record = {}
+        record['PartitionKey'] = self.TOTAL_PARTITION
+        record['RowKey'] = user_id
         record[self.PM_PREFERENCE] = pref
+        self._table_service.merge_entity(self._table_name, record)
 
     def get_pm_preference(self, user_id: str) -> int:
         """Return user's PM Preference integer. 0 = no pm's, 1 = all pm's"""
