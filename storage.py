@@ -476,4 +476,3 @@ class InMemoryStorage(Storage):
         """Set user's PM Preference"""
         self._check_user(user_id=user_id)
         self._set_user_field(user_id, self.PM_PREFERENCE, pref)
-        
