@@ -78,6 +78,9 @@ class FireballMessage():
                     self.target_name = user_name_lookup[self.target_id_only]
                 except KeyError:
                     self.target_name = self.target_id
+            else:
+                self.target_id_only = None
+                self.target_name = self.target_id
             self.command = self._extract_command()
             self.count = self._extract_count()
             self.setting = self._extract_setting() # Find on/off or assume toggle
