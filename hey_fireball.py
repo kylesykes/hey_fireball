@@ -5,6 +5,8 @@ from collections import namedtuple
 import re 
 import json
 
+from typing import Dict, List
+
 # 3rd party imports
 from slackclient import SlackClient
 
@@ -37,7 +39,22 @@ commands_with_target = [POINTS, 'all']
 user_list = slack_client.api_call("users.list")['members']
 user_name_lookup = {x['id'] : x['name'] for x in user_list}  # U1A1A1A1A : kyle.sykes
 
-def get_username(user_id):
+def get_username(user_id: str, user_name_lookup: Dict[str, str]) -> str:
+    """Get username from ``user_name_lookup`` dictionary
+
+    Parameters
+    ----------
+    user_id
+        Slack user ID
+    user_name_lookup
+        Dictionary of slack_id : username
+    
+    Returns
+    -------
+    str
+        Slack username associated with ``user_id``
+
+    """
     try:
         return user_name_lookup[user_id]
     except KeyError:
@@ -47,11 +64,54 @@ def get_username(user_id):
 # FireballMessage class
 ################
 class FireballMessage():
+    """Class to parse slack messages for Fireball bot
+
+    Attributes
+    ----------
+    requestor_id_only : str
+        User Id of person that sent the message
+    requestor_id : str
+        Formatted string for Slack to display requestor username properly
+    requestor_name : str
+        Username display name for requestor
+    channel : str
+        Channel the message was received in
+    text : str
+        Text of the message
+    parts : list
+        ``text`` split on spaces
+    bot_is_first : bool
+        Boolean flag determining whether the bot name was the first
+        thing in the message or not
+    valid : bool
+        Boolean determining if message is a message intended for
+        bot or not (default None)
+    target_id : str
+        The intended target of points to be given
+    target_id_only : str
+        User Id of the intended recipient of points
+    target_name : str
+        Slack username of the target
+    command : str
+        Command given or intepreted
+    count : int
+        Count of number of points to be given
+    setting : int
+        Toggle for whether PMs should be sent to the user or not
+    ts
+        Storing thread_ts of message
+    """
 
     _USER_ID_PATTERN = '^<@\w+>$'
     _user_id_re = re.compile(_USER_ID_PATTERN)
 
-    def __init__(self, msg):
+    def __init__(self, msg: Dict):
+        """
+        Parameters
+        ----------
+        msg
+            Dictionary of the message from the Slack API
+        """
         self.requestor_id_only = msg['user']
         self.requestor_id = f'<@{self.requestor_id_only}>'
         try:
@@ -185,7 +245,7 @@ def add_user_points_received(user_id: str, num: int):
     """Add `num` to user's total and today's received points."""
     _storage.add_user_points_received(user_id, num)
 
-def get_users_and_scores() -> list:
+def get_users_and_scores() -> List:
     """Return list of (user, total points received) tuples."""
     return _storage.get_users_and_scores_total()
 
@@ -223,18 +283,43 @@ def parse_slack_output(slack_rtm_output):
     return None
 
 
-def is_valid_message(fireball_message):
-    """Determines if the message contained in the FireballMessage instance is valid."""
+def is_valid_message(fireball_message: FireballMessage) -> bool:
+    """Determines if the message contained in the 
+    FireballMessage instance is valid.
+    
+    Parameters
+    ----------
+    fireball_message
+        Instance of FireballMessage
+        
+    Returns
+    -------
+    bool
+        True if ``fireball_message`` is valid, False otherwise
+        
+    """
     if fireball_message.command:
         return True
     return False
 
 
-def extract_fireball_info(slack_msg):
+def extract_fireball_info(slack_msg: Dict) -> FireballMessage:
     """Extract relevant info from slack msg and return a FireballInfo instance.
 
     If required info is missing or the format is not recognized, set valid=False 
     and return instance.
+
+    Parameters
+    ----------
+    slack_msg
+        Dictionary of the message from the Slack API
+    
+    Returns
+    -------
+    fireball
+        FireballMessage instance with (if available) parsed 
+        commands
+
     """
     fireball = FireballMessage(slack_msg)
 
@@ -257,10 +342,16 @@ def extract_fireball_info(slack_msg):
 # Executing commands
 #####################
 
-def handle_command(fireball_message):
+def handle_command(fireball_message: FireballMessage):
     """
         Receive a valid FireballMessage instance and 
         execute the command.
+
+    Parameters
+    ----------
+    fireball_message
+        Instance of ``FireballMessage`` class
+
     """
     msg = ''
     attach = None
@@ -360,8 +451,13 @@ def handle_command(fireball_message):
 #     pass 
 
 
-def check_points(user_id, number_of_points):
+def check_points(user_id: str, number_of_points: int):
     """Check to see if user_id has enough points remaining today.
+
+    user_id
+        Slack User Id
+    number_of_points
+        Number of points to be given
     """
     return get_user_points_remaining(user_id) >= number_of_points
 
@@ -376,22 +472,49 @@ http://www.color-hex.com/color-palette/27418
 '''
 colors = ['#d4af37', '#c0c0c0', '#cd7f32', '#36a64f']
 
-def leaderboard_item(user, score, idx):
-    """Generate a leaderboard item."""
+def leaderboard_item(user: str, score: int, idx: int, colors: List) -> Dict[str, str]:
+    """Generate an individual leaderboard item
+    
+    Parameters
+    ----------
+    user
+        Name of user
+    score
+        Current score for ``user``
+    idx
+        Variable for helping track indices
+    colors
+        List of hex colors for leaderboard colors in 
+        descending order
+
+    Returns
+    -------
+    dict
+        Single leaderboard item
+
+
+    """
     return    {
             "fallback": "{}: {}".format(user, score),
             "color": colors[min(idx, len(colors) - 1)],
             "title":  "{}: {}".format(user, score)
         }
 
-def generate_leaderboard():
-    """Generate a formatted leaderboard."""
+def generate_leaderboard() -> List[Dict[str, str]]:
+    """Generate a formatted leaderboard
+
+    Returns
+    ----------
+    board
+        List of leaderboard items
+
+    """
     # Get sorted list of all users and their scores.
     users_and_scores = get_users_and_scores()
     if users_and_scores is not None:
         leaders = sorted(get_users_and_scores(), key=lambda tup: tup[1], reverse=True)
         # Create list of leaderboard items.
-        board = [leaderboard_item(get_username(tup[0][2:-1]), tup[1], idx) for idx, tup in enumerate(leaders[:10])]
+        board = [leaderboard_item(get_username(tup[0][2:-1], user_name_lookup), tup[1], idx, colors) for idx, tup in enumerate(leaders[:10])]
         if len(board) > 0:
             # Add test to the first element.
             #board[0]["pretext"] = "Leaderboard"
@@ -402,12 +525,26 @@ def generate_leaderboard():
     else:
         return
 
-def generate_full_leaderboard(full=False):
-    """Generate a formatted leaderboard."""
+def generate_full_leaderboard(full: bool = False) -> List[Dict[str, str]]:
+    """Generate a formatted leaderboard
+    
+    Parameters
+    ----------
+    full
+        Flag for returning the full leadboard or a truncated version
+        (to not overload a channel)
+
+    Returns
+    -------
+    list
+        list containing a single message formatted to display
+        the leaderboard
+
+    """
     # Get sorted list of all users and their scores.
     leaders = sorted(get_users_and_scores(), key=lambda tup: tup[1], reverse=True)
     # Create list of leaderboard items.
-    text = '\n'.join([f'{idx + 1}. {get_username(tup[0][2:-1])} has {tup[1]} {POINTS}' for idx, tup in enumerate(leaders)])
+    text = '\n'.join([f'{idx + 1}. {get_username(tup[0][2:-1], user_name_lookup)} has {tup[1]} {POINTS}' for idx, tup in enumerate(leaders)])
     if len(text) == 0:
         text = f"No users yet. Start giving {POINTS}!!!"
     board = {'text':text, 'color':'#f05500'}
