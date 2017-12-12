@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 This module encapsulates interations with a storage mechanism
-that holds informatoin such as user scores, remaining points
+that holds information such as user scores, remaining points
 for user, etc.
 
 The abstract class `Storage` defines the methods needed 
 to interact with a storage mechanism. 
 
-This module contains two `Storage` subclasses: redis and
+This module contains two `Storage` subclasses: AzureTable and
 inmemory. Additional subclasses can be made that allow 
 the use of any appropriate storage mechanism (database,
 flat-file, etc.)
@@ -15,7 +15,7 @@ flat-file, etc.)
 import os
 import datetime
 
-from typing import List
+from typing import List, Tuple
 
 #####################
 # API
@@ -30,11 +30,11 @@ class Storage():
     querying/updating user data.
     """
     ### Points used
-    def get_user_points_used_total(self, user_id: str):
+    def get_user_points_used_total(self, user_id: str) -> int:
         """Return total number of points used or 0."""
         pass
 
-    def get_user_points_used(self, user_id: str):
+    def get_user_points_used(self, user_id: str) -> int:
         """Return number of points used today or 0."""
         pass
 
@@ -43,11 +43,11 @@ class Storage():
         pass
 
     ### Points received
-    def get_user_points_received_total(self, user_id: str):
+    def get_user_points_received_total(self, user_id: str) -> int:
         """Return total number of points received or 0."""
         pass
 
-    def get_user_points_received(self, user_id: str):
+    def get_user_points_received(self, user_id: str) -> int:
         """Return number of points received today or 0."""
         pass
 
@@ -55,12 +55,12 @@ class Storage():
         """Add `num` to user's total and today's received points."""
         pass
 
-    def get_users_and_scores_total(self):
+    def get_users_and_scores_total(self) -> List[Tuple[str, int]]:
         """Return list of tuples (user_id, points_received_total)."""
         pass
 
     ### PM Preferences
-    def get_pm_preference(self, user_id: str):
+    def get_pm_preference(self, user_id: str) -> int:
         """Return user's PM Preference"""
         pass
 
@@ -71,13 +71,14 @@ class Storage():
 class AzureTableStorage(Storage):
     """Implementation of `Storage` that uses Azure Table Service.
     
-    Env Var:
+    __Env Var__
         ACCOUNT_NAME : table service account name
         ACCOUNT_KEY : table service key
         ACCOUNT_SAS : table service sas
         TABLE_NAME : name of the table
     Only one of TABLE_KEY or TABLE_SAS is needed.
 
+    __Table record contents__
     PartitionKey: date by day, or Total
     RowKey: username
     Fields:
@@ -87,20 +88,20 @@ class AzureTableStorage(Storage):
         received today: points received
         given today: points given
         negative today: negative points received
+        pm preference: preference for private messages
 
     The records in the TOTAL partition contain the total and the daily total
     for each user. When data is retrieved from the table, the user's record
-    from the TOTAL partition is grabbed. The LAST_UPDATE field is compared 
+    from the TOTAL partition is grabbed. The built in TIMESTAMP field is compared 
     to today's date: if it matches, that record is used; if the date it old,
     a copy of the record is added to the table in the date partition and 
-    the record in the Total partition is updated with zero's for today's 
+    the record in the Total partition is updated with zeros for today's 
     counts.
     This approach allows all of a user's info to be grabbed/updated in a 
-    single call to the table, not separate calls for Total and Today. The
-    downside is that the entire Total record must be grabbed each time 
-    (you can't select a subset of fields), because you might have 
+    single call to the table, not separate calls for Total and Today.
     """
 
+    # Define field names
     POINTS_USED_TOTAL = 'POINTS_USED_TOTAL'
     POINTS_RECEIVED_TOTAL = 'POINTS_RECEIVED_TOTAL'
     NEGATIVE_POINTS_USED_TOTAL = 'NEGATIVE_POINTS_USED_TOTAL'
@@ -113,7 +114,7 @@ class AzureTableStorage(Storage):
 
     def __init__(self):
         super().__init__()
-        # Check is azure library is installed.
+        # Check if azure library is installed.
         try:
             import azure.storage.table
         except ImportError:
@@ -291,7 +292,7 @@ class AzureTableStorage(Storage):
         record[self.POINTS_RECEIVED_TOTAL] += num
         self._table_service.merge_entity(self._table_name, record)
 
-    def get_users_and_scores_total(self) -> list:
+    def get_users_and_scores_total(self) -> List[Tuple[str, int]]:
         """Return list of tuples (user_id, points_received_total)."""
         filter_query = "PartitionKey eq '{}'".format(self.TOTAL_PARTITION)
         select_query = "Timestamp,RowKey,{}".format(self.POINTS_RECEIVED_TOTAL)
@@ -394,7 +395,7 @@ class InMemoryStorage(Storage):
             self.LAST_MODIFIED: self._get_today()
         }
 
-    def _user_exists(self, user_id: str):
+    def _user_exists(self, user_id: str) -> bool:
         """Return True if user_id is in storage."""
         return user_id in self._data
 
@@ -432,12 +433,12 @@ class InMemoryStorage(Storage):
         self._data[user_id][field] += value
 
     ### Points used
-    def get_user_points_used_total(self, user_id: str):
+    def get_user_points_used_total(self, user_id: str) -> int:
         """Return total number of points used or 0."""
         self._check_user(user_id=user_id)
         return self._get_user_field(user_id, self.POINTS_USED_TOTAL)
 
-    def get_user_points_used(self, user_id: str):
+    def get_user_points_used(self, user_id: str) -> int:
         """Return number of points used or 0."""
         self._check_user(user_id=user_id)
         return self._get_user_field(user_id, self.POINTS_USED_TODAY)
@@ -449,12 +450,12 @@ class InMemoryStorage(Storage):
         self._add_to_user_field(user_id, self.POINTS_USED_TODAY, num)
 
     ### Points received
-    def get_user_points_received_total(self, user_id: str):
+    def get_user_points_received_total(self, user_id: str) -> int:
         """Return total number of points received or 0."""
         self._check_user(user_id=user_id)
         return self._get_user_field(user_id, self.POINTS_RECEIVED_TOTAL)
 
-    def get_user_points_received(self, user_id: str):
+    def get_user_points_received(self, user_id: str) -> int:
         """Return number of points received or 0."""
         self._check_user(user_id=user_id)
         return self._get_user_field(user_id, self.POINTS_RECEIVED_TODAY)
@@ -465,7 +466,7 @@ class InMemoryStorage(Storage):
         self._add_to_user_field(user_id, self.POINTS_RECEIVED_TOTAL, num)
         self._add_to_user_field(user_id, self.POINTS_RECEIVED_TODAY, num)
 
-    def get_users_and_scores_total(self):
+    def get_users_and_scores_total(self) -> List[Tuple[str, int]]:
         """Return list of tuples (user_id, points_received)."""
         return [(user, self._get_user_field(user, self.POINTS_RECEIVED_TOTAL)) 
                 for user in self.get_users()]
