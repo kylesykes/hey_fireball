@@ -183,21 +183,21 @@ class FireballMessage():
                     pass
 
     def _extract_setting(self):
-        if self.bot_is_first:
-            idx = 2
-            curPref = get_pm_preference(self.requestor_id)
-            if len(self.parts) < 3:
-                #Act as a toggle
-                if curPref:
-                    return 0
-                else:
-                    return 1
-            if self.parts[idx].lower() == 'on' and not curPref:
-                return 1
-            elif self.parts[idx].lower() == 'off' and curPref:
+        """Find the setting from self-targeting commands"""
+        idx = sum([bool(self.bot_is_first), bool(self.requestor_id)])
+        current_preference = get_pm_preference(self.requestor_id)
+        if 'on' in self.parts and not current_preference:
+            return 1
+        elif 'off' in self.parts and current_preference:
+            return 0
+        elif len(self.parts) == idx:
+            # No Arguments, act as a toggle:
+            if current_preference:
                 return 0
             else:
-                pass
+                return 1
+        else:
+            return 2
 
     '''
     # Use the following to catch and handle missing methods/properties as we want
@@ -406,11 +406,14 @@ def handle_command(fireball_message: FireballMessage):
         send_message_to = fireball_message.requestor_id_only
 
     elif fireball_message.command == 'setpm':
-        set_pm_preference(fireball_message.requestor_id, fireball_message.setting)
-        if fireball_message.setting:
-            msg = "Receive PM's: On"
+        if fireball_message.setting <= 1:
+            set_pm_preference(fireball_message.requestor_id, fireball_message.setting)
+            if fireball_message.setting:
+                msg = "Receive PM's: On"
+            else:
+                msg = "Receive PM's: Off\n*Warning:* _Future messages that were sent only to you will look like this. This type of response does not typically persist between slack sessions._"
         else:
-            msg = "Receive PM's: Off\n*Warning:* _Future messages that were sent only to you will look like this. This type of response does not typically persist between slack sessions._"
+            msg = f"The option is already set as requested, or the argument was invalid.\nI accept: `{AT_BOT} setpm on`, `{AT_BOT} setpm off`, or `{AT_BOT} setpm` (to act as a toggle). "
         send_message_to = fireball_message.requestor_id_only
     else:
         # Message was not valid, so
