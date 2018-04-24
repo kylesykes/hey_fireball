@@ -25,7 +25,7 @@ Hey Fireball relies on several environmental variables for a successful deployme
 
 ### Walking through deployment to Heroku
 
-![Deployment Pipeline](images/development_process.png)
+![Deployment Pipeline](talks/stl-meetup/images/development_process.png)
 
 
 - Get [Slack](https://slack.com/)
