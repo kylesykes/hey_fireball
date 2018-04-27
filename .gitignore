@@ -108,3 +108,4 @@ ENV/
 *.ignoreme
 ignoreme/
 .DS_Store
+.pytest_cache
