@@ -101,9 +101,12 @@ class FireballMessage():
     ts
         Storing thread_ts of message
     """
-
+    _GENERAL_USER_ID_PATTERN = '<@\w+>'
     _USER_ID_PATTERN = '^<@\w+>$'
+    _BOT_ID_PATTERN = '(<.BOT_ID>)'
+    _general_user_id_re = re.compile(_GENERAL_USER_ID_PATTERN)
     _user_id_re = re.compile(_USER_ID_PATTERN)
+    _bot_id_re = re.compile(_BOT_ID_PATTERN)
 
     def __init__(self, msg: Dict):
         """
@@ -121,6 +124,7 @@ class FireballMessage():
         self.channel = msg['channel']
         self.text = msg['text']
         self.parts = self.text.split()
+        self.target_list = self._extract_targets()
         self.bot_is_first = self.parts[0] == AT_BOT
         self.valid = None
         # Check if botname was the only token.
@@ -161,6 +165,13 @@ class FireballMessage():
             if a[0][2:-1] in user_name_lookup.keys():
                 return a[0]
         return None
+
+    def _extract_targets(self):
+        """Return a list of targets for the message"""
+        target_list = re.findall(FireballMessage._general_user_id_re, self.text)
+        # remove bot from target_list
+        target_list = [target for target in target_list if target != AT_BOT]
+        return target_list
  
     def _extract_command(self):
         """Find the command in the message."""
@@ -172,15 +183,7 @@ class FireballMessage():
 
     def _extract_count(self):
         """Extract the count of EMOJI in the message."""
-        idx = sum([bool(self.bot_is_first), bool(self.target_id)])
-        if len(self.parts) > idx:
-            if self.parts[idx] == EMOJI:
-                return sum(part==EMOJI for part in self.parts[idx:])
-            else:
-                try:
-                    return int(self.parts[idx])
-                except ValueError:
-                    pass
+        return self.text.count(EMOJI)
 
     def _extract_setting(self):
         """Find the setting from self-targeting commands"""

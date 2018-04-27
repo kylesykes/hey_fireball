@@ -15,8 +15,8 @@ def points():
 
 @pytest.fixture(scope="module",
                 params=['<@heyfireball> :fireball: :fireball:', 
-                         '<@heyfireball> :fireball: :fireball:'])
-def valid_message(request):
+                         '<@heyfireball> :fireball::fireball:'])
+def bot_first_message(request):
     """Sample valid message from Slack for testing
     """
     return {
@@ -26,13 +26,20 @@ def valid_message(request):
         'ts': '1'
     }
 
-@pytest.fixture(scope='module')
-def invalid_message_1():
-    """Sample invalid message from Slack for testing
+
+@pytest.fixture(scope="module",
+                params=['<@12345> :fireball: :fireball:',
+                        '<@12345> :fireball::fireball:',
+                        '<@12345>:fireball::fireball:',
+                        '<@12345><@heyfireball>:fireball::fireball:',
+                        ':fireball::fireball: <@12345>',
+                        ':fireball:<@12345>:fireball:'])
+def single_user_first_message(request):
+    """Sample valid message from Slack for testing
     """
     return {
         'user': '12345',
         'channel': 'test_channel',
-        'text': '<@12345> :fireball: :fireball:',
+        'text': request.param,
         'ts': '1'
     }
