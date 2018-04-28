@@ -43,3 +43,16 @@ def single_user_first_message(request):
         'text': request.param,
         'ts': '1'
     }
+
+
+@pytest.fixture(scope="module",
+                params=['<@12345> leaderboard'])
+def user_leaderboard_command(request):
+    """Sample valid message from Slack for testing
+    """
+    return {
+        'user': '12345',
+        'channel': 'test_channel',
+        'text': request.param,
+        'ts': '1'
+    }

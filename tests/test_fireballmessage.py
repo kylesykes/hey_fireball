@@ -97,6 +97,10 @@ class TestSingleUserFirstFireballMessage:
     def test_extract_targets(self, single_user_first_fireball_message):
         assert len(single_user_first_fireball_message._extract_targets()) == 1
 
+    def test_extract_command(self, single_user_first_fireball_message, 
+                             points):
+        assert single_user_first_fireball_message._extract_command() == points
+
     
         
 

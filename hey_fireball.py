@@ -127,28 +127,29 @@ class FireballMessage():
         self.target_list = self._extract_targets()
         self.bot_is_first = self.parts[0] == AT_BOT
         self.valid = None
-        # Check if botname was the only token.
-        if len(self.parts) > 1:
-            # Extract target.
-            if self.bot_is_first: 
-                token = self.parts[1]
-            else:
-                token = self.parts[0] 
-            self.target_id = self._extract_valid_user(token)
-            if self.target_id is not None:
-                self.target_id_only = self.target_id[2:-1]
-                # Try to get target username.
-                try:
-                    self.target_name = user_name_lookup[self.target_id_only]
-                except KeyError:
-                    self.target_name = self.target_id
-            else:
-                self.target_id_only = None
-                self.target_name = self.target_id
-            self.command = self._extract_command()
-            self.count = self._extract_count()
-            self.setting = self._extract_setting() # Find on/off or assume toggle
-            self.ts = msg['ts'] # Store the thread_ts
+
+        # Set the target_id
+        if len(self.target_list) == 1:
+            self.target_id = self.target_list[0]
+        else: #TODO: Add support for multiple targets at a time
+            self.target_id = None
+
+        # Set the target_id_only, if possible
+        if self.target_id is None:
+            self.target_id_only = None
+        else:
+            self.target_id_only = self.target_id[2:-1]
+
+        # set target_name, if possible
+        try:
+            self.target_name = user_name_lookup[self.target_id_only]
+        except KeyError:
+            self.target_name = self.target_id
+
+        self.count = self._extract_count()
+        self.command = self._extract_command()
+        self.setting = self._extract_setting() # Find on/off or assume toggle
+        self.ts = msg['ts'] # Store the thread_ts
 
     def __str__(self):
         return str(vars(self))
@@ -175,11 +176,14 @@ class FireballMessage():
  
     def _extract_command(self):
         """Find the command in the message."""
-        idx = sum([bool(self.bot_is_first), bool(self.target_id)])
-        if len(self.parts) > idx:
-            cmds = commands_with_target if self.target_id else commands
-            if self.parts[idx].lower() in cmds:
-                 return self.parts[idx].lower()
+        if self.bot_is_first:
+            for command in commands:
+                if command in self.text.lower():
+                    return command
+        
+        if self.target_id is not None:
+            if self.count > 0:
+                return POINTS
 
     def _extract_count(self):
         """Extract the count of EMOJI in the message."""
@@ -187,20 +191,15 @@ class FireballMessage():
 
     def _extract_setting(self):
         """Find the setting from self-targeting commands"""
-        idx = sum([bool(self.bot_is_first), bool(self.requestor_id)])
-        current_preference = get_pm_preference(self.requestor_id)
-        if 'on' in self.parts and not current_preference:
-            return 1
-        elif 'off' in self.parts and current_preference:
-            return 0
-        elif len(self.parts) == idx:
-            # No Arguments, act as a toggle:
-            if current_preference:
-                return 0
-            else:
-                return 1
-        else:
-            return 2
+        if self.bot_is_first:
+            current_preference = get_pm_preference(self.requestor_id)
+            if 'setpm' in self.text:
+                if 'on' in self.text:
+                    return 1
+                elif 'off' in self.text:
+                    return 0
+                else: # default toggle
+                    return (current_preference + 1) % 2
 
     '''
     # Use the following to catch and handle missing methods/properties as we want
