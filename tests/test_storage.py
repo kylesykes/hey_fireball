@@ -11,73 +11,67 @@ import storage
 
 
 ### Fixtures
-@pytest.fixture()
+@pytest.fixture(scope='module')
 def user_id():
     return 'Matt'
 
-@pytest.fixture()
+@pytest.fixture(scope='module')
 def points_to_add():
     return 3
 
-@pytest.fixture()
+@pytest.fixture(scope='module')
 def points_received_to_add():
     return 5
 
+
 @pytest.fixture(scope='module')
-def ats():
-    TABLE_NAME = os.getenv('TABLE_NAME') + str(random.randint(0, 100000))
-    print('\n' + TABLE_NAME)
-    ats = storage.AzureTableStorage()
-    ats._table_name = TABLE_NAME
-    print('\nCreating Azure Table {}...'.format(TABLE_NAME))
-    ats._table_service.create_table(TABLE_NAME)
-    time.sleep(3)
-    yield ats
-    print('\nDeleting Azure Table {}...'.format(TABLE_NAME))
-    ats._table_service.delete_table(TABLE_NAME)
+def local_storage(user_id):
+    local_storage = storage.InMemoryStorage()
+    local_storage._create_user_entry(user_id=user_id)
+    return local_storage
 
+class TestInMemoryStorage():
 
-### Tests
-def test_get_user_points_used(ats, user_id):
-    assert ats.get_user_points_used(user_id) == 0
+    ## Tests
+    def test_get_user_points_used(self, local_storage, user_id):
+        assert local_storage.get_user_points_used(user_id) == 0
 
-def test_add_user_points_used(ats, user_id, points_to_add):
-    ats.add_user_points_used(user_id, points_to_add)
-    assert ats.get_user_points_used(user_id) == points_to_add
-    assert ats.get_user_points_used_total(user_id) == points_to_add
-    
-def test_get_user_points_received(ats, user_id):
-    assert ats.get_user_points_received(user_id) == 0
+    def test_add_user_points_used(self, local_storage, user_id, points_to_add):
+        local_storage.add_user_points_used(user_id, points_to_add)
+        assert local_storage.get_user_points_used(user_id) == points_to_add
+        assert local_storage.get_user_points_used_total(user_id) == points_to_add
+        
+    def test_get_user_points_received(self, local_storage, user_id):
+        assert local_storage.get_user_points_received(user_id) == 0
 
-def test_add_user_points_received(ats, user_id, points_received_to_add):
-    ats.add_user_points_received(user_id, points_received_to_add)
-    assert ats.get_user_points_received(user_id) == points_received_to_add
-    assert ats.get_user_points_received_total(user_id) == points_received_to_add
+    def test_add_user_points_received(self, local_storage, user_id, points_received_to_add):
+        local_storage.add_user_points_received(user_id, points_received_to_add)
+        assert local_storage.get_user_points_received(user_id) == points_received_to_add
+        assert local_storage.get_user_points_received_total(user_id) == points_received_to_add
 
 # Move user to new day and check that the daily is 0 and the total is old value.
 # Moving user to new day must happen after all the daily checks are done (above).
-def test_move_user_to_new_day(ats, user_id):
-    old_record = ats._table_service.get_entity(ats._table_name,
-                                              ats.TOTAL_PARTITION,
-                                              user_id)
-    ats._move_user_to_new_day(user_id)
-    new_record = ats._table_service.get_entity(ats._table_name,
-                                            ats._get_today_str(),
-                                            user_id)
-    assert new_record is not None
-    fields = [ats.POINTS_USED_TOTAL,
-              ats.POINTS_USED_TODAY,
-              ats.POINTS_RECEIVED_TOTAL,
-              ats.POINTS_RECEIVED_TODAY,
-              ats.NEGATIVE_POINTS_USED_TOTAL,
-              ats.NEGATIVE_POINTS_USED_TODAY]
-    for field in fields:
-        assert old_record[field] == new_record[field]
+# TODO: Implement _move_user_to_new_day method for InMemoryStorage
+    # def test_move_user_to_new_day(self, local_storage, user_id):
+    #     old_record = local_storage._data[user_id]
+    #     self._move_user_to_new_day(user_id)
+        
+    #     new_record = local_storage._data[user_id]
 
-def test_user_points_used_new_day(ats, user_id, points_to_add):
-    assert ats.get_user_points_used(user_id) == 0
-    assert ats.get_user_points_used_total(user_id) == points_to_add
+    #     assert new_record is not None
+    #     fields = [local_storage.POINTS_USED_TOTAL,
+    #             local_storage.POINTS_USED_TODAY,
+    #             local_storage.POINTS_RECEIVED_TOTAL,
+    #             local_storage.POINTS_RECEIVED_TODAY,
+    #             local_storage.NEGATIVE_POINTS_USED_TOTAL,
+    #             local_storage.NEGATIVE_POINTS_USED_TODAY]
+    #     for field in fields:
+    #         assert old_record[field] == new_record[field]
 
-def test_user_points_received_new_day(ats, user_id, points_received_to_add):
-    assert ats.get_user_points_received(user_id) == 0
-    assert ats.get_user_points_received_total(user_id) == points_received_to_add
+    # def test_user_points_used_new_day(self, local_storage, user_id, points_to_add):
+    #     assert local_storage.get_user_points_used(user_id) == 0
+    #     assert local_storage.get_user_points_used_total(user_id) == points_to_add
+
+    # def test_user_points_received_new_day(self, local_storage, user_id, points_received_to_add):
+    #     assert local_storage.get_user_points_received(user_id) == 0
+    #     assert local_storage.get_user_points_received_total(user_id) == points_received_to_add
